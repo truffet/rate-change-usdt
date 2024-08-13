@@ -4,13 +4,7 @@ This project fetches market data for USDT pairs from Binance and sorts them by p
 
 ## Setup
 
-1. Create and activate a virtual environment:
-    ```bash
-    python -m venv env
-    source env/bin/activate  # On Windows use `env\Scripts\activate`
-    ```
-
-2. Install the dependencies:
+1. Install the dependencies:
     ```bash
     pip install -r requirements.txt
     ```
