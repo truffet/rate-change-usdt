@@ -1,6 +1,6 @@
 # Trend Analysis Simplified
 
-This project fetches market data for USDT pairs from Binance and sorts them by percentage change between Open and Close prices.
+This project fetches the latest completed 4-hour market data for USDT pairs from Binance and sorts them by percentage change between Open and Close prices.
 
 ## Setup
 
@@ -11,12 +11,12 @@ This project fetches market data for USDT pairs from Binance and sorts them by p
 
 ## Usage
 
-1. Fetch market data:
+1. Install the dependencies:
     ```bash
-    python fetch_market_data.py
+    pip install -r requirements.txt
     ```
 
-2. Sort and save the data:
+2. Run the main script:
     ```bash
-    python sort_and_save.py
+    python main.py
     ```
