@@ -62,9 +62,6 @@ venv/
 ENV.bak/
 venv.bak/
 
-# pyenv
-.python-version
-
 # mypy
 .mypy_cache/
 .dmypy.json
@@ -86,3 +83,6 @@ logs/
 ENV/
 env/
 venv/
+
+# macOS system files
+.DS_Store
