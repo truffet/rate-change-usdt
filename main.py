@@ -1,7 +1,9 @@
 from data_fetcher.get_usdt_pairs import get_usdt_pairs
 from data_fetcher.fetch_latest_market_data import fetch_latest_market_data
-from data_processor.process_market_data import process_market_data
-from data_processor.sort_by_percentage_change import sort_by_percentage_change
+from data_processor.calculate_rate_change import calculate_rate_change
+from data_processor.convert_volume_to_usdt import convert_volume_to_usdt
+from data_processor.calculate_z_scores import calculate_z_scores, combine_z_scores
+from data_processor.data_sort_by import data_sort_by
 from io_operations.save_to_csv import save_to_csv
 
 def main():
@@ -15,12 +17,27 @@ def main():
         all_data.append(data)
         print(f"Latest data for {pair} fetched successfully")  # Console print for debugging
 
-    # Process the market data
-    processed_data = process_market_data(all_data)
-    # Sort the processed data by percentage change
-    sorted_data = sort_by_percentage_change(processed_data)
+    # Calculate percentage change
+    processed_data = calculate_rate_change(all_data)
+    
+    # Convert volume to USDT
+    processed_data = convert_volume_to_usdt(processed_data)
+
+    # Calculate Z-scores for percentage change and volume in USDT
+    processed_data = calculate_z_scores(processed_data)
+
+    # Combine the Z-scores into a single metric
+    processed_data = combine_z_scores(processed_data)
+
+    # Sort the processed data by % change
+    rate_sorted_data = data_sort_by(processed_data, 'pct_change')
+    # Sort the processed data by combined Z score
+    z_sorted_data = data_sort_by(processed_data, 'combined_z_score')
+
+
     # Save the sorted data to CSV
-    save_to_csv(sorted_data, 'data/sorted_market_data.csv')
+    save_to_csv(rate_sorted_data, 'data/rate_sorted_market_data.csv')
+    save_to_csv(z_sorted_data, 'data/z_sorted_market_data.csv')
 
 if __name__ == "__main__":
     main()
