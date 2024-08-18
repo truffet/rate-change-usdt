@@ -1,3 +1,4 @@
+import json
 from data_fetcher.get_usdt_pairs import get_usdt_pairs
 from data_fetcher.fetch_latest_market_data import fetch_latest_market_data
 from data_processor.calculate_rate_change import calculate_rate_change
@@ -6,9 +7,17 @@ from data_processor.calculate_z_scores import calculate_z_scores, combine_z_scor
 from data_processor.data_sort_by import data_sort_by
 from io_operations.save_to_csv import save_to_csv
 
+def load_config(config_file='config.json'):
+    with open(config_file, 'r') as file:
+        config = json.load(file)
+    return config
+
 def main():
+    # Load configuration
+    config = load_config()
+    interval = config.get('interval', '4h')  # Default to '4h' if not found
+
     usdt_pairs = get_usdt_pairs()
-    interval = '4h'  # 4-hour interval
     all_data = []
 
     for pair in usdt_pairs:
@@ -33,7 +42,6 @@ def main():
     rate_sorted_data = data_sort_by(processed_data, 'pct_change')
     # Sort the processed data by combined Z score
     z_sorted_data = data_sort_by(processed_data, 'combined_z_score')
-
 
     # Save the sorted data to CSV
     save_to_csv(rate_sorted_data, 'data/rate_sorted_market_data.csv')
