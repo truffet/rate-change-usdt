@@ -46,9 +46,13 @@ def main():
     # Sort the processed data by combined Z score
     z_sorted_data = data_sort_by(processed_data, 'combined_z_score')
 
+    # Filter data with combined Z score >= 2
+    filtered_data = processed_data[processed_data['combined_z_score'] >= 2]
+
     # Save the sorted data to CSV with timestamp in filenames
     save_to_csv(rate_sorted_data, f'data/{timestamp}_rate_sorted_market_data.csv')
     save_to_csv(z_sorted_data, f'data/{timestamp}_z_sorted_market_data.csv')
+    save_to_csv(filtered_data, f'data/{timestamp}_filtered_market_data.csv')
 
 if __name__ == "__main__":
     main()
