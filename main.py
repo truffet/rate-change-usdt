@@ -19,12 +19,15 @@ def main():
 
     usdt_pairs = get_usdt_pairs()
     all_data = []
+    timestamp = None  # Initialize timestamp
 
     for pair in usdt_pairs:
         print(f"Fetching latest data for {pair}")  # Console print for debugging
         data = fetch_latest_market_data(pair, interval)
         all_data.append(data)
         print(f"Latest data for {pair} fetched successfully")  # Console print for debugging
+        if not timestamp:  # Set timestamp from the first pair data
+            timestamp = data['timestamp']
 
     # Calculate percentage change
     processed_data = calculate_rate_change(all_data)
@@ -43,9 +46,9 @@ def main():
     # Sort the processed data by combined Z score
     z_sorted_data = data_sort_by(processed_data, 'combined_z_score')
 
-    # Save the sorted data to CSV
-    save_to_csv(rate_sorted_data, 'data/rate_sorted_market_data.csv')
-    save_to_csv(z_sorted_data, 'data/z_sorted_market_data.csv')
+    # Save the sorted data to CSV with timestamp in filenames
+    save_to_csv(rate_sorted_data, f'data/{timestamp}_rate_sorted_market_data.csv')
+    save_to_csv(z_sorted_data, f'data/{timestamp}_z_sorted_market_data.csv')
 
 if __name__ == "__main__":
     main()
