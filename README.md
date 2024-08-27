@@ -1,67 +1,79 @@
-# Trend Analysis Simplified
+# Rate Change USDT Script
 
-This project automates the process of fetching and analyzing the latest completed 4-hour market data for USDT pairs from Binance. It calculates the percentage change between Open and Close prices, converts trading volumes to USDT, and ranks the pairs based on their performance metrics. The results are saved into CSV files for further analysis.
+This repository contains a Python script that fetches cryptocurrency data from the Binance API, processes it to calculate rate changes and z-scores, and sends the results to a Telegram bot.
 
-## Table of Contents
-- [Introduction](#introduction)
-- [Setup](#setup)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Contributing](#contributing)
-- [License](#license)
+## Prerequisites
 
-## Introduction
+1. **Python 3.x**: Ensure Python 3 is installed on your system. You can download it from Python's official website.
 
-The `Trend Analysis Simplified` tool is designed for traders and analysts who need to quickly assess the performance of USDT trading pairs on Binance. By automating the data fetching and processing, it saves time and provides a standardized approach to trend analysis.
+2. **Required Python Packages**: Install the necessary Python packages by running:
+
+pip install -r requirements.txt
+
+3. **Set Up Telegram Bot**: Create a Telegram bot using BotFather and get the API token. Add your chat ID and bot token to the `config.json` file.
 
 ## Setup
 
-### Prerequisites
-- Python 3.6 or higher
-- pip (Python package installer)
+### 1. Clone the Repository
 
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/truffet/rate-change-usdt.git
-   ```
-2. Navigate to the project directory:
-   ```bash
-   cd rate-change-usdt
-   ```
-3. Install the dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+Clone the repository to your local machine:
+
+git clone https://github.com/yourusername/rate-change-usdt.git
+cd rate-change-usdt
+
+### 2. Configure the Script
+
+Edit the `config.json` file to include your Telegram bot token and chat ID:
+
+{
+    "interval": "4h",
+    "telegram": {
+        "bot_token": "YOUR_BOT_TOKEN_HERE",
+        "chat_id": "YOUR_CHAT_ID_HERE"
+    }
+}
+
+Replace `YOUR_BOT_TOKEN_HERE` and `YOUR_CHAT_ID_HERE` with your actual Telegram bot token and chat ID.
+
+### 3. Set Up Cron Job
+
+To automatically run the script every 4 hours and log the output, you can use the `setup_cron.sh` script provided in the repository.
+
+#### a. Make `setup_cron.sh` Executable
+
+Run the following command to make the script executable:
+
+chmod +x setup_cron.sh
+
+#### b. Run the Setup Script
+
+Execute the `setup_cron.sh` script to set up the cron job:
+
+./setup_cron.sh
+
+This will create a cron job that runs `main.py` every 4 hours and logs the output to `cronjob.log`.
+
+### 4. Check Logs
+
+To view the output logs of your cron job, use the `check_logs.sh` script:
+
+#### a. Make `check_logs.sh` Executable
+
+Run the following command to make the script executable:
+
+chmod +x check_logs.sh
+
+#### b. Run the Log Checking Script
+
+Execute the `check_logs.sh` script to display the last 10 lines of the log file:
+
+./check_logs.sh
 
 ## Usage
 
-1. Ensure the configuration file (`config.json`) is set up with the desired settings.
-2. Run the main script:
-   ```bash
-   python main.py
-   ```
-3. The script will fetch the latest market data, process it, and save the results in the `data/` directory as CSV files.
-4. Check the `data` folder for the output files:
-   - `rate_sorted_market_data.csv`: Data sorted by percentage change.
-   - `z_sorted_market_data.csv`: Data sorted by combined Z-scores.
+Once everything is set up, the script will automatically run every 4 hours and send the processed data to your Telegram bot. You can check the logs using the `check_logs.sh` script to verify the script's output.
 
-## Configuration
-
-The project uses a `config.json` file to manage settings like the time interval for data fetching. The default configuration is:
-
-```json
-{
-    "interval": "4h"
-}
-```
-
-You can modify this file to change the interval or add other configurations.
-
-## Contributing
-
-Contributions are welcome! If you find a bug or have a feature request, please open an issue or submit a pull request. Ensure that your code follows the project's coding standards and includes tests for any new features.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
