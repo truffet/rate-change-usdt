@@ -30,20 +30,36 @@ async def main():
     chat_id = telegram_config.get('chat_id')
 
     usdt_pairs = get_usdt_pairs()
+    if not usdt_pairs:
+        print("No USDT pairs fetched. Exiting.")
+        return
+
     all_data = []
     timestamp = None  # Initialize timestamp
 
     for pair in usdt_pairs:
         print(f"Fetching latest data for {pair}")  # Console print for debugging
         data = fetch_latest_market_data(pair, interval)
+        if not data:
+            print(f"Failed to fetch data for {pair}. Skipping.")
+            continue
         all_data.append(data)
         print(f"Latest data for {pair} fetched successfully")  # Console print for debugging
         if not timestamp:  # Set timestamp from the first pair data
             timestamp = data['timestamp']
 
+    if not all_data:
+        print("No data fetched for any USDT pairs. Exiting.")
+        return
+
     # Calculate percentage change
     processed_data = calculate_rate_change(all_data)
     
+    # Check if processed_data is not empty
+    if processed_data.empty:
+        print("Processed data is empty. Exiting.")
+        return
+
     # Convert volume to USDT
     processed_data = convert_volume_to_usdt(processed_data)
 
@@ -72,7 +88,7 @@ async def main():
 
     # Read the filtered data from CSV and format it for Telegram
     filtered_data_df = pd.read_csv(filtered_file)
-    formatted_message = f'{timestamp} 4H recap (Z-score > 2):\n\n'
+    formatted_message = "Filtered Market Data (Z-score > 2):\n\n"
     for index, row in filtered_data_df.iterrows():
         formatted_message += f"{row['symbol']}: {row['combined_z_score']:.2f}\n"
 
