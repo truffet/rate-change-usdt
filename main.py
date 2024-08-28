@@ -54,11 +54,6 @@ async def main():
 
     # Calculate percentage change
     processed_data = calculate_rate_change(all_data)
-    
-    # Check if processed_data is not empty
-    if processed_data.empty:
-        print("Processed data is empty. Exiting.")
-        return
 
     # Convert volume to USDT
     processed_data = convert_volume_to_usdt(processed_data)
@@ -88,7 +83,7 @@ async def main():
 
     # Read the filtered data from CSV and format it for Telegram
     filtered_data_df = pd.read_csv(filtered_file)
-    formatted_message = "Filtered Market Data (Z-score > 2):\n\n"
+    formatted_message = f'{timestamp} Filtered Market Data (Z-score > 2):\n\n'
     for index, row in filtered_data_df.iterrows():
         formatted_message += f"{row['symbol']}: {row['combined_z_score']:.2f}\n"
 
