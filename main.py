@@ -29,7 +29,11 @@ def load_config():
 # Function to send a message via Telegram
 async def send_telegram_message(bot_token, chat_id, message):
     bot = Bot(token=bot_token)
-    await bot.send_message(chat_id=chat_id, text=message)
+    # Split message into chunks of 4096 characters (Telegram's limit)
+    message_chunks = [message[i:i+4096] for i in range(0, len(message), 4096)]
+    
+    for chunk in message_chunks:
+        await bot.send_message(chat_id=chat_id, text=chunk)
 
 # Main async function
 async def main():
@@ -78,7 +82,10 @@ async def main():
     z_sorted_data = data_sort_by(processed_data, 'combined_z_score')
 
     # Filter data where combined Z-score > 2
-    filtered_data = processed_data[processed_data['combined_z_score'] > 2]
+    filtered_data_above_2 = processed_data[processed_data['combined_z_score'] > 2]
+
+    # Filter data where combined Z-score < -2
+    filtered_data_below_neg_2 = processed_data[processed_data['combined_z_score'] < -2]
 
     # Get the directory where this script is located for saving the data
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -91,24 +98,39 @@ async def main():
     # Save the sorted data to CSV with timestamp in filenames
     rate_file = os.path.join(data_dir, f'{timestamp}_rate_sorted_market_data.csv')
     z_file = os.path.join(data_dir, f'{timestamp}_z_sorted_market_data.csv')
-    filtered_file = os.path.join(data_dir, f'{timestamp}_filtered_market_data.csv')
+    filtered_file_above_2 = os.path.join(data_dir, f'{timestamp}_filtered_market_data_above_2.csv')
+    filtered_file_below_neg_2 = os.path.join(data_dir, f'{timestamp}_filtered_market_data_below_neg_2.csv')
 
     save_to_csv(rate_sorted_data, rate_file)
     save_to_csv(z_sorted_data, z_file)
-    save_to_csv(filtered_data, filtered_file)
+    save_to_csv(filtered_data_above_2, filtered_file_above_2)
+    save_to_csv(filtered_data_below_neg_2, filtered_file_below_neg_2)
 
     # Read the filtered data from CSV and format it for Telegram
-    filtered_data_df = pd.read_csv(filtered_file)
-    formatted_message = f'{timestamp} Filtered Market Data (Z-score > 2):\n\n'
-    for index, row in filtered_data_df.iterrows():
-        formatted_message += f"{row['symbol']}: {row['combined_z_score']:.2f}\n"
+    filtered_data_above_2_df = pd.read_csv(filtered_file_above_2)
+    filtered_data_below_neg_2_df = pd.read_csv(filtered_file_below_neg_2)
 
-    # Send Telegram message with the filtered data results
+    # Format the message for Z-scores > 2
+    formatted_message_above_2 = f'{timestamp} Filtered Market Data (Z-score > 2):\n\n'
+    for index, row in filtered_data_above_2_df.iterrows():
+        formatted_message_above_2 += f"{row['symbol']}: {row['combined_z_score']:.2f}\n"
+
+    # Format the message for Z-scores < -2
+    formatted_message_below_neg_2 = f'{timestamp} Filtered Market Data (Z-score < -2):\n\n'
+    for index, row in filtered_data_below_neg_2_df.iterrows():
+        formatted_message_below_neg_2 += f"{row['symbol']}: {row['combined_z_score']:.2f}\n"
+
+    # Send Telegram message with the filtered data results for both Z-score ranges
     if bot_token and chat_id:
         await send_telegram_message(
             bot_token=bot_token,
             chat_id=chat_id,
-            message=formatted_message
+            message=formatted_message_above_2
+        )
+        await send_telegram_message(
+            bot_token=bot_token,
+            chat_id=chat_id,
+            message=formatted_message_below_neg_2
         )
 
 # Entry point for script execution
