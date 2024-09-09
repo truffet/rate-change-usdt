@@ -1,7 +1,7 @@
 {
     "interval": "4h",
     "telegram": {
-        "bot_token": "insert_your_token_here",
-        "chat_id": "insert_your_channel_id"
+        "bot_token": "7511742577:AAGQJA23ZOxUrYGA1JIo07BHLpysHkQDiww",
+        "chat_id": "-1002167130489"
     }
 }
