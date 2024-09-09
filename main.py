@@ -4,6 +4,7 @@ import os
 import json
 import asyncio
 from telegram import Bot
+from datetime import datetime
 from data_fetcher.get_usdt_pairs import get_usdt_pairs
 from data_fetcher.fetch_latest_market_data import fetch_latest_market_data
 from data_processor.calculate_rate_change import calculate_rate_change
@@ -55,6 +56,9 @@ async def main():
     all_data = []
     timestamp = None  # Initialize timestamp
 
+    # Get current timestamp in the format YYYY-MM-DD_HH-MM-SS for file naming and messages
+    current_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
     # Fetch data for each USDT pair
     for pair in usdt_pairs:
         print(f"Fetching latest data for {pair}")  # Console print for debugging
@@ -96,10 +100,10 @@ async def main():
         os.makedirs(data_dir)
 
     # Save the sorted data to CSV with timestamp in filenames
-    rate_file = os.path.join(data_dir, f'{timestamp}_rate_sorted_market_data.csv')
-    z_file = os.path.join(data_dir, f'{timestamp}_z_sorted_market_data.csv')
-    filtered_file_above_2 = os.path.join(data_dir, f'{timestamp}_filtered_market_data_above_2.csv')
-    filtered_file_below_neg_2 = os.path.join(data_dir, f'{timestamp}_filtered_market_data_below_neg_2.csv')
+    rate_file = os.path.join(data_dir, f'{current_datetime}_rate_sorted_market_data.csv')
+    z_file = os.path.join(data_dir, f'{current_datetime}_z_sorted_market_data.csv')
+    filtered_file_above_2 = os.path.join(data_dir, f'{current_datetime}_filtered_market_data_above_2.csv')
+    filtered_file_below_neg_2 = os.path.join(data_dir, f'{current_datetime}_filtered_market_data_below_neg_2.csv')
 
     save_to_csv(rate_sorted_data, rate_file)
     save_to_csv(z_sorted_data, z_file)
@@ -111,12 +115,12 @@ async def main():
     filtered_data_below_neg_2_df = pd.read_csv(filtered_file_below_neg_2)
 
     # Format the message for Z-scores > 2
-    formatted_message_above_2 = f'{timestamp} Filtered Market Data (Z-score > 2):\n\n'
+    formatted_message_above_2 = f'{current_datetime} Filtered Market Data (Z-score > 2):\n\n'
     for index, row in filtered_data_above_2_df.iterrows():
         formatted_message_above_2 += f"{row['symbol']}: {row['combined_z_score']:.2f}\n"
 
     # Format the message for Z-scores < -2
-    formatted_message_below_neg_2 = f'{timestamp} Filtered Market Data (Z-score < -2):\n\n'
+    formatted_message_below_neg_2 = f'{current_datetime} Filtered Market Data (Z-score < -2):\n\n'
     for index, row in filtered_data_below_neg_2_df.iterrows():
         formatted_message_below_neg_2 += f"{row['symbol']}: {row['combined_z_score']:.2f}\n"
 
