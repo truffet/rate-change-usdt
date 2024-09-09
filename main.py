@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import json
 import asyncio
 from telegram import Bot
@@ -12,15 +13,25 @@ from data_processor.data_sort_by import data_sort_by
 from io_operations.save_to_csv import save_to_csv
 import pandas as pd
 
-def load_config(config_file='config.json'):
+# Function to load config with absolute path
+def load_config():
+    # Get the directory where this script is located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Full path to config.json
+    config_file = os.path.join(script_dir, 'config.json')
+    
+    # Load the configuration file
     with open(config_file, 'r') as file:
         config = json.load(file)
     return config
 
+# Function to send a message via Telegram
 async def send_telegram_message(bot_token, chat_id, message):
     bot = Bot(token=bot_token)
     await bot.send_message(chat_id=chat_id, text=message)
 
+# Main async function
 async def main():
     # Load configuration
     config = load_config()
@@ -31,6 +42,7 @@ async def main():
     bot_token = telegram_config.get('bot_token')
     chat_id = telegram_config.get('chat_id')
 
+    # Get USDT pairs
     usdt_pairs = get_usdt_pairs()
     if not usdt_pairs:
         print("No USDT pairs fetched. Exiting.")
@@ -39,6 +51,7 @@ async def main():
     all_data = []
     timestamp = None  # Initialize timestamp
 
+    # Fetch data for each USDT pair
     for pair in usdt_pairs:
         print(f"Fetching latest data for {pair}")  # Console print for debugging
         data = fetch_latest_market_data(pair, interval)
@@ -54,31 +67,32 @@ async def main():
         print("No data fetched for any USDT pairs. Exiting.")
         return
 
-    # Calculate percentage change
+    # Process data
     processed_data = calculate_rate_change(all_data)
-
-    # Convert volume to USDT
     processed_data = convert_volume_to_usdt(processed_data)
-
-    # Calculate Z-scores for percentage change and volume in USDT
     processed_data = calculate_z_scores(processed_data)
-
-    # Combine the Z-scores into a single metric
     processed_data = combine_z_scores(processed_data)
 
-    # Sort the processed data by % change
+    # Sort data
     rate_sorted_data = data_sort_by(processed_data, 'pct_change')
-    # Sort the processed data by combined Z score
     z_sorted_data = data_sort_by(processed_data, 'combined_z_score')
 
-    # Filter data with combined Z score > 2
+    # Filter data where combined Z-score > 2
     filtered_data = processed_data[processed_data['combined_z_score'] > 2]
 
+    # Get the directory where this script is located for saving the data
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    data_dir = os.path.join(script_dir, 'data')
+
+    # Ensure the data directory exists
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+
     # Save the sorted data to CSV with timestamp in filenames
-    rate_file = f'data/{timestamp}_rate_sorted_market_data.csv'
-    z_file = f'data/{timestamp}_z_sorted_market_data.csv'
-    filtered_file = f'data/{timestamp}_filtered_market_data.csv'
-    
+    rate_file = os.path.join(data_dir, f'{timestamp}_rate_sorted_market_data.csv')
+    z_file = os.path.join(data_dir, f'{timestamp}_z_sorted_market_data.csv')
+    filtered_file = os.path.join(data_dir, f'{timestamp}_filtered_market_data.csv')
+
     save_to_csv(rate_sorted_data, rate_file)
     save_to_csv(z_sorted_data, z_file)
     save_to_csv(filtered_data, filtered_file)
@@ -97,5 +111,6 @@ async def main():
             message=formatted_message
         )
 
+# Entry point for script execution
 if __name__ == "__main__":
     asyncio.run(main())
