@@ -25,8 +25,8 @@ if [ -z "$PYTHON_PATH" ]; then
     exit 1
 fi
 
-# Cron job schedule (from argument or default to run every minute)
-CRON_SCHEDULE="${1:-"* * * * *"}"
+# Cron job schedule (from argument or default to run at 4:05 AM, 8:05 AM, 12:05 PM, 4:05 PM, 8:05 PM, and 12:05 AM)
+CRON_SCHEDULE="${1:-"5 4,8,12,16,20,0 * * *"}"
 
 # Full cron job command to execute main.py at the specified times, capturing both stdout and stderr
 CRON_COMMAND="$CRON_SCHEDULE $PYTHON_PATH $PYTHON_SCRIPT_PATH >> $LOG_FILE 2>&1"
