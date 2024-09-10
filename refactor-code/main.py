@@ -32,10 +32,7 @@ def main():
     # Fetch actively traded USDT pairs
     usdt_pairs = api_client.get_usdt_pairs()
 
-    rate_changes = []
-    volumes = []
-    symbols = []
-    combined_z_scores_list = []
+    candlestick_data_list = []
     open_time = None
     close_time = None
 
@@ -48,59 +45,38 @@ def main():
             continue
 
         # Calculate rate change based on open and close prices
-        rate_change = data_processor.calculate_rate_change(candlestick_data)
+        rate_change = (float(candlestick_data[4]) - float(candlestick_data[1])) / float(candlestick_data[1]) * 100
 
         # Get the volume in USDT (quote asset volume, index 7)
         volume_in_usdt = float(candlestick_data[7])
-
-        if rate_change is None:
-            logging.warning(f"Failed to calculate rate change for {usdt_pair}. Skipping.")
-            continue
 
         # Set open and close times (once, since they are the same for all pairs)
         if not open_time:
             open_time = datetime.fromtimestamp(candlestick_data[0] / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
             close_time = datetime.fromtimestamp(candlestick_data[6] / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
-        # Append for z-score calculations
-        rate_changes.append(rate_change)
-        volumes.append(volume_in_usdt)  # Add the volume in USDT
-        symbols.append(usdt_pair)
+        # Collect data for each pair
+        candlestick_data_list.append({
+            "pair": usdt_pair,
+            "pct_change": rate_change,
+            "volume_usdt": volume_in_usdt
+        })
 
-    # Calculate z-scores for rate changes and volumes
-    rate_z_scores = data_processor.calculate_z_scores(rate_changes)
-    volume_z_scores = data_processor.calculate_z_scores(volumes)
+    # Calculate and combine z-scores using the DataProcessor
+    df = data_processor.calculate_z_scores(candlestick_data_list)
+    df = data_processor.combine_z_scores(df)
 
-    # Combine z-scores by multiplying them
-    combined_z_scores = data_processor.calculate_multiplied_z_scores(rate_z_scores, volume_z_scores)
+    # Filter by combined z-scores with absolute value > 2
+    df = df[abs(df['combined_z_score']) > 2]
 
-    # Collect the data and sort by absolute value of combined z-score
-    combined_z_scores_list = [
-        {
-            "pair": symbols[i],
-            "rate_change": rate_changes[i],
-            "volume": volumes[i],
-            "rate_z_score": rate_z_scores[i],
-            "volume_z_score": volume_z_scores[i],
-            "combined_z_score": combined_z_scores[i]
-        }
-        for i in range(len(symbols))
-        if abs(combined_z_scores[i]) > 2  # Only include z-scores with absolute value > 2
-    ]
-
-    # Sort by absolute value of combined z-score (highest to lowest)
-    sorted_results = sorted(combined_z_scores_list, key=lambda x: abs(x["combined_z_score"]), reverse=True)
-
-    # Prepare the entire message to send at once
+    # Prepare message for Telegram
     full_message = f"📅 **Candlestick Data**\nOpen Time: {open_time} | Close Time: {close_time}\n\n"
-
-    for result in sorted_results:
-        rate_change_icon = "🔺" if result["rate_change"] > 0 else "🔻"
-        volume_icon = "🟩" if result["rate_change"] > 0 else "🟥"
-
+    for _, row in df.iterrows():
+        rate_change_icon = "🔺" if row['pct_change'] > 0 else "🔻"
+        volume_icon = "🟩" if row['pct_change'] > 0 else "🟥"
         full_message += (
-            f"💲 {result['pair']} {rate_change_icon}{result['rate_change']:.2f}% {volume_icon}{result['volume']:.0f} USDT "
-            f"| R-Z: {result['rate_z_score']:.2f} | V-Z: {result['volume_z_score']:.2f} | C-Z: {result['combined_z_score']:.2f}\n"
+            f"💲 {row['pair']} {rate_change_icon}{row['pct_change']:.2f}% {volume_icon}{row['volume_usdt']:.0f} USDT "
+            f"| R-Z: {row['z_pct_change']:.2f} | V-Z: {row['z_volume_usdt']:.2f} | C-Z: {row['combined_z_score']:.2f}\n"
         )
 
     # Send the entire message as a single Telegram message
