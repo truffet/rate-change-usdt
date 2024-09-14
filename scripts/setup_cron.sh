@@ -25,19 +25,19 @@ if [ -z "$PYTHON_PATH" ]; then
     exit 1
 fi
 
-# Cron job schedule (from argument or default to run at 4:05 AM, 8:05 AM, 12:05 PM, 4:05 PM, 8:05 PM, and 12:05 AM)
+# Cron job schedule (for 4:05 AM, 8:05 AM, 12:05 PM, 4:05 PM, 8:05 PM, and 12:05 AM in system timezone)
 CRON_SCHEDULE="${1:-"5 4,8,12,16,20,0 * * *"}"
 
-# Full cron job command to execute main.py at the specified times, capturing both stdout and stderr
+# Full cron job command to execute main.py at the specified times based on system time
 CRON_COMMAND="$CRON_SCHEDULE $PYTHON_PATH $PYTHON_SCRIPT_PATH >> $LOG_FILE 2>&1"
 
 # Remove any existing cron jobs for the script to avoid duplicates
 (crontab -l | grep -v "$PYTHON_SCRIPT_PATH") | crontab -
 
-# Add the new cron job
+# Add the new cron job with system timezone
 (crontab -l; echo "$CRON_COMMAND") | crontab -
 
 # Success message
 echo "Cron job set up successfully."
-echo "main.py will now run according to the schedule: $CRON_SCHEDULE"
+echo "main.py will now run according to the schedule: $CRON_SCHEDULE based on system timezone."
 echo "Logging output will be saved to $LOG_FILE."
