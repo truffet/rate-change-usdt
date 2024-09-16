@@ -40,5 +40,8 @@ pip3 install scipy
 # Install python-telegram-bot
 pip3 install python-telegram-bot
 
+# Install APScheduler (for cron-like scheduling)
+pip3 install apscheduler
+
 # Final message
 echo "Python and necessary Python packages installed successfully."

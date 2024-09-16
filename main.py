@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-
 import logging
-from datetime import datetime, timezone
+import asyncio  # Added to allow async functions
 from src.config_loader import ConfigLoader
 from src.api_client import BinanceAPI
 from src.data_processor import DataProcessor
@@ -10,7 +8,7 @@ from src.telegram_client import TelegramBot
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def main():
+async def main():
     logging.info("Starting the Rate Change USDT script.")
     
     # Load configuration from config.json
@@ -32,20 +30,23 @@ def main():
     # Fetch actively traded USDT pairs
     usdt_pairs = api_client.get_usdt_pairs()
 
-    # Call DataProcessor to process all USDT pairs' data and get open/close times
+    # Process all USDT pairs' data and get open/close times
     candlestick_data_list, open_time, close_time = data_processor.process_all_usdt_pairs(api_client, usdt_pairs)
 
     # Calculate and combine z-scores using the DataProcessor
     df = data_processor.calculate_z_scores(candlestick_data_list)
     df = data_processor.combine_z_scores(df)
 
+    # Save candlestick data (including Z-scores) to the database
+    data_processor.save_candlestick_data_to_db(df.to_dict(orient='records'))
+
     # Filter by combined z-scores with absolute value > 2
     df = df[abs(df['combined_z_score']) > 2]
 
-    # Send the candlestick summary message using TelegramBot
-    telegram_bot.send_candlestick_summary(df, open_time, close_time)
+    # Send the candlestick summary message using TelegramBot (async)
+    await telegram_bot.send_candlestick_summary(df, open_time, close_time)
 
     logging.info("Script completed successfully.")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())  # Use asyncio to run the main function
