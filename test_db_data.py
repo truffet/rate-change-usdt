@@ -61,6 +61,26 @@ def fetch_first_and_last_row(db_file="trading_data.db", table_name="usdt_4h"):
     finally:
         conn.close()
 
+def check_table_schema(db_file="trading_data.db", table_name="usdt_4h"):
+    """Check the table schema to ensure columns are present."""
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(f"PRAGMA table_info({table_name});")
+        columns = cursor.fetchall()
+
+        if columns:
+            print(f"\nSchema for table '{table_name}':")
+            for column in columns:
+                print(f"Column Name: {column[1]}, Type: {column[2]}")
+        else:
+            print(f"No schema information found for table '{table_name}'.")
+    except sqlite3.Error as e:
+        print(f"Error accessing the database schema: {e}")
+    finally:
+        conn.close()
+
 def main():
     db_file = "trading_data.db"
     table_name = "usdt_4h"
@@ -72,6 +92,9 @@ def main():
     # Check if the table exists
     if not check_table_exists(db_file, table_name):
         return
+
+    # Check the table schema
+    check_table_schema(db_file, table_name)
 
     # Fetch the first and last rows
     fetch_first_and_last_row(db_file, table_name)

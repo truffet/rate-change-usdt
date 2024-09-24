@@ -41,7 +41,7 @@ async def main():
     data_processor.save_candlestick_data_to_db(df.to_dict(orient='records'))
 
     # Filter by combined z-scores with absolute value > 2
-    df = df[abs(df['combined_z_score']) > 2]
+    df = df[abs(df['z_combined']) > 2]
 
     # Send the candlestick summary message using TelegramBot (async)
     await telegram_bot.send_candlestick_summary(df, open_time, close_time)

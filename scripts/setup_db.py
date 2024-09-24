@@ -24,12 +24,12 @@ else:
         high_price DECIMAL(18, 8) NOT NULL,-- Highest price
         low_price DECIMAL(18, 8) NOT NULL, -- Lowest price
         close_price DECIMAL(18, 8) NOT NULL,-- Closing price
-        volume DECIMAL(18, 8) NOT NULL,    -- Volume traded during the 4-hour period
-        quote_volume DECIMAL(18, 8),       -- Quote asset volume during the 4-hour period
+        volume DECIMAL(18, 8) NOT NULL,    -- Volume traded during the 4-hour period (base asset volume)
+        quote_volume DECIMAL(18, 8),       -- Quote asset volume (in USDT) during the 4-hour period
         rate_change DECIMAL(18, 8),        -- Percentage rate change
-        volume_zscore DECIMAL(18, 8),      -- Z-score of volume for this trading pair
-        rate_change_zscore DECIMAL(18, 8), -- Z-score of rate change for this trading pair
-        combined_zscore DECIMAL(18, 8),    -- Combined Z-score (volume Z-score * rate change Z-score)
+        z_quote_volume DECIMAL(18, 8),     -- Z-score of quote volume (in USDT)
+        z_pct_change DECIMAL(18, 8),       -- Z-score of percentage rate change
+        z_combined DECIMAL(18, 8),    -- Combined Z-score (quote volume Z-score * rate change Z-score)
         UNIQUE(symbol, open_time)          -- Ensure unique data per trading pair and time
     );
     ''')
