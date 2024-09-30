@@ -21,17 +21,14 @@ class DataProcessor:
         """Calculate the percentage rate change between open and close prices."""
         return (float(close_price) - float(open_price)) / float(open_price) * 100
 
-    def process_usdt_pair_data(self, usdt_pair, candlestick_data):
+    def process_candlestick_data(self, symbol, candlestick_data):
         """
         Process the candlestick data for a given USDT pair.
         Calculates rate change and volume in USDT.
         """
-        if not candlestick_data:
-            return None
-
         open_time = datetime.fromtimestamp(candlestick_data[0] / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         close_time = datetime.fromtimestamp(candlestick_data[6] / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        
+
         open_price = float(candlestick_data[1])
         high_price = float(candlestick_data[2])
         low_price = float(candlestick_data[3])
@@ -43,7 +40,7 @@ class DataProcessor:
         rate_change = self.calculate_rate_change(open_price, close_price)
 
         return {
-            "symbol": usdt_pair,
+            "symbol": symbol,
             "open_price": open_price,
             "high_price": high_price,
             "low_price": low_price,
@@ -55,29 +52,26 @@ class DataProcessor:
             "close_time": close_time
         }
 
-    def process_all_usdt_pairs(self, api_client, usdt_pairs):
+    def process_all_candlestick_data(self, usdt_pairs_with_candlestick_data):
         """
-        Fetch candlestick data for each USDT pair, calculate rate change and volume, 
-        and return the processed data along with open/close times.
+        Process all candlestick data for each USDT pair.
         """
-        candlestick_data_list = []
+        processed_data = []
         open_time = None
         close_time = None
 
-        for usdt_pair in usdt_pairs:
-            candlestick_data = api_client.fetch_last_completed_candlestick(usdt_pair)
-            processed_data = self.process_usdt_pair_data(usdt_pair, candlestick_data)
-
-            if processed_data is None:
-                continue
+        for data in usdt_pairs_with_candlestick_data:
+            symbol = data['symbol']
+            candlestick_data = data['candlestick_data']
+            processed_pair_data = self.process_candlestick_data(symbol, candlestick_data)
 
             if not open_time:
-                open_time = processed_data['open_time']
-                close_time = processed_data['close_time']
+                open_time = processed_pair_data['open_time']
+                close_time = processed_pair_data['close_time']
 
-            candlestick_data_list.append(processed_data)
+            processed_data.append(processed_pair_data)
 
-        return candlestick_data_list, open_time, close_time
+        return processed_data, open_time, close_time
 
     def save_candlestick_data_to_db(self, data, db_file="trading_data.db"):
         """Save the candlestick data to the SQLite database, checking only the most recent entry."""

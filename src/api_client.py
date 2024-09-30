@@ -1,5 +1,3 @@
-# src/api_client.py
-
 import requests
 import logging
 
@@ -12,21 +10,40 @@ class BinanceAPI:
         self.kline_endpoint = '/api/v3/klines'
         self.exchange_info_endpoint = '/api/v3/exchangeInfo'
 
-    def get_usdt_pairs(self):
-        """Fetches all actively traded USDT pairs from Binance."""
+    def get_usdt_pairs_and_candlestick_data(self):
+        """
+        Fetches all actively traded USDT pairs and their last completed candlestick data from Binance.
+        
+        Returns:
+            list: A list of dictionaries, each containing the symbol and the most recent candlestick data.
+        """
         try:
+            # Fetch actively traded USDT pairs
             response = requests.get(f"{self.BASE_URL}{self.exchange_info_endpoint}")
-            response.raise_for_status()  # Raise an exception for 4XX/5XX errors
+            response.raise_for_status()
             symbols = response.json()['symbols']
+
             usdt_pairs = [
                 symbol['symbol'] 
                 for symbol in symbols 
                 if symbol['quoteAsset'] == 'USDT' and symbol['status'] == 'TRADING'
             ]
+
             logging.info(f"Successfully fetched {len(usdt_pairs)} USDT pairs.")
-            return usdt_pairs
+
+            # Fetch candlestick data for each USDT pair
+            candlestick_data_list = []
+            for symbol in usdt_pairs:
+                candlestick_data = self.fetch_last_completed_candlestick(symbol)
+                if candlestick_data:
+                    candlestick_data_list.append({
+                        "symbol": symbol,
+                        "candlestick_data": candlestick_data
+                    })
+
+            return candlestick_data_list
         except requests.RequestException as e:
-            logging.error(f"Error fetching USDT pairs from Binance: {e}")
+            logging.error(f"Error fetching USDT pairs or candlestick data from Binance: {e}")
             return []
 
     def fetch_last_completed_candlestick(self, symbol):
