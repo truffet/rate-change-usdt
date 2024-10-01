@@ -12,25 +12,33 @@ else:
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
-    # Step 3: Create the usdt_4h table if it does not already exist
+    # Step 3: Create the `usdt_4h` table if it does not already exist
     print("Creating usdt_4h table...")
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS usdt_4h (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        symbol VARCHAR(10) NOT NULL,       -- Trading pair symbol
-        open_time TEXT NOT NULL,           -- Start time of the 4-hour candlestick
-        close_time TEXT NOT NULL,          -- End time of the 4-hour candlestick
-        open_price DECIMAL(18, 8) NOT NULL,-- Opening price
-        high_price DECIMAL(18, 8) NOT NULL,-- Highest price
-        low_price DECIMAL(18, 8) NOT NULL, -- Lowest price
-        close_price DECIMAL(18, 8) NOT NULL,-- Closing price
-        volume DECIMAL(18, 8) NOT NULL,    -- Volume traded during the 4-hour period (base asset volume)
-        quote_volume DECIMAL(18, 8),       -- Quote asset volume (in USDT) during the 4-hour period
-        rate_change DECIMAL(18, 8),        -- Percentage rate change
-        z_quote_volume DECIMAL(18, 8),     -- Z-score of quote volume (in USDT)
-        z_pct_change DECIMAL(18, 8),       -- Z-score of percentage rate change
-        z_combined DECIMAL(18, 8),    -- Combined Z-score (quote volume Z-score * rate change Z-score)
-        UNIQUE(symbol, open_time)          -- Ensure unique data per trading pair and time
+        symbol VARCHAR(10) NOT NULL,      -- Trading pair symbol
+        open_time TEXT NOT NULL,          -- Start time of the 4-hour candlestick
+        close_time TEXT NOT NULL,         -- End time of the 4-hour candlestick
+        open_price DECIMAL(18, 8) NOT NULL,  -- Opening price
+        high_price DECIMAL(18, 8) NOT NULL,  -- Highest price
+        low_price DECIMAL(18, 8) NOT NULL,   -- Lowest price
+        close_price DECIMAL(18, 8) NOT NULL, -- Closing price
+        volume DECIMAL(18, 8) NOT NULL,      -- Volume traded during the 4-hour period
+        quote_volume DECIMAL(18, 8),         -- Quote asset volume (in USDT)
+        rate_change DECIMAL(18, 8),          -- Percentage rate change
+
+        -- Pair-specific Z-scores (Z-scores based on the trading pair's own history)
+        z_rate_change_pair DECIMAL(18, 8),   -- Z-score of rate change for the specific trading pair
+        z_volume_pair DECIMAL(18, 8),        -- Z-score of volume for the specific trading pair
+        z_combined_pair DECIMAL(18, 8),      -- Combined Z-score for the specific trading pair
+
+        -- Cross-pair Z-scores (Z-scores based on comparison with other pairs)
+        z_rate_change_all_pairs DECIMAL(18, 8),   -- Z-score of rate change across all pairs
+        z_volume_all_pairs DECIMAL(18, 8),        -- Z-score of volume across all pairs
+        z_combined_all_pairs DECIMAL(18, 8),      -- Combined Z-score across all pairs
+
+        UNIQUE(symbol, open_time)  -- Ensure unique data per trading pair and time
     );
     ''')
 
@@ -38,4 +46,4 @@ else:
     conn.commit()
     conn.close()
 
-    print(f"Database and usdt_4h table created successfully in '{DB_FILE}'.")
+    print(f"Database and `usdt_4h` table created successfully in '{DB_FILE}'.")
