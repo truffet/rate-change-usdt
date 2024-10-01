@@ -20,8 +20,9 @@ class TelegramBot:
                 volume_icon = "🟩" if row['pct_change'] > 0 else "🟥"
                 
                 full_message += (
-                    f"💲 {row['symbol']} {rate_change_icon}{row['pct_change']:.2f}% {volume_icon}{row['quote_volume']:.0f} USDT "
-                    f"| R-Z: {row['z_pct_change']:.2f} | V-Z: {row['z_quote_volume']:.2f} | C-Z: {row['z_combined']:.2f}\n"
+                    f"💲 {row['symbol']} {rate_change_icon}{row['pct_change']:.2f}% {volume_icon}{row['quote_volume']:.0f} USDT\n"
+                    f"| Pair-Specific Z-Scores: R-Z: {row['z_rate_change_pair']:.2f} | V-Z: {row['z_volume_pair']:.2f} | C-Z: {row['z_combined_pair']:.2f}\n"
+                    f"| Cross-Pair Z-Scores: R-Z: {row['z_rate_change_all_pairs']:.2f} | V-Z: {row['z_volume_all_pairs']:.2f} | C-Z: {row['z_combined_all_pairs']:.2f}\n\n"
                 )
             
             # Send the entire message as a single Telegram message asynchronously

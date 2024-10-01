@@ -1,72 +1,97 @@
-from datetime import datetime, timezone
 import pandas as pd
 from scipy.stats import zscore
+from datetime import datetime, timezone
 import sqlite3
 
 class DataProcessor:
-    
-    def calculate_z_scores(self, data):
-        """Calculate Z-scores for percentage change and volume (in USDT)."""
-        df = pd.DataFrame(data)
-        df['z_pct_change'] = zscore(df['pct_change'])
-        df['z_quote_volume'] = zscore(df['quote_volume'])  # Use quote volume (USDT) for Z-scores
-        return df
 
-    def combine_z_scores(self, df):
-        """Combine the Z-scores of percentage change and volume in USDT."""
-        df['z_combined'] = df['z_pct_change'] * df['z_quote_volume']  # Use quote volume Z-score
-        return df
-
-    def calculate_rate_change(self, open_price, close_price):
-        """Calculate the percentage rate change between open and close prices."""
-        return (float(close_price) - float(open_price)) / float(open_price) * 100
-
-    def process_usdt_pair_data(self, usdt_pair, candlestick_data):
+    def get_historical_data_for_pair(self, conn, symbol):
         """
-        Process the candlestick data for a given USDT pair.
-        Calculates rate change and volume in USDT.
-        """
-        if not candlestick_data:
-            return None
-
-        open_time = datetime.fromtimestamp(candlestick_data[0] / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        close_time = datetime.fromtimestamp(candlestick_data[6] / 1000, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        Fetch all available historical data for the given symbol from the database.
         
-        open_price = float(candlestick_data[1])
-        high_price = float(candlestick_data[2])
-        low_price = float(candlestick_data[3])
-        close_price = float(candlestick_data[4])
-        volume = float(candlestick_data[5])  # Base asset volume, not used for Z-scores
-        quote_volume = float(candlestick_data[7])  # Quote volume in USDT
+        Args:
+            conn: SQLite connection.
+            symbol: The trading pair symbol (e.g., 'BTCUSDT').
 
-        # Calculate rate change
-        rate_change = self.calculate_rate_change(open_price, close_price)
-
-        return {
-            "symbol": usdt_pair,
-            "open_price": open_price,
-            "high_price": high_price,
-            "low_price": low_price,
-            "close_price": close_price,
-            "volume": volume,  # Base asset volume (not used for Z-scores)
-            "quote_volume": quote_volume,  # This is the volume in USDT
-            "pct_change": rate_change,
-            "open_time": open_time,
-            "close_time": close_time
-        }
-
-    def fetch_and_process_historical_data(self, api_client, symbol, start_time, end_time):
+        Returns:
+            pd.DataFrame: Historical data for the given trading pair.
         """
-        Fetches historical data for the given symbol and time range and processes it.
+        query = '''
+        SELECT * FROM usdt_4h 
+        WHERE symbol = ? 
+        ORDER BY open_time DESC
+        '''
+        df = pd.read_sql_query(query, conn, params=(symbol,))
+        return df
+
+    def get_historical_data_all_pairs(self, conn):
         """
-        candlestick_data = api_client.fetch_candlestick_data_by_time(symbol, start_time, end_time)
-        if candlestick_data:
-            return self.process_usdt_pair_data(symbol, candlestick_data)
-        else:
+        Fetch all available historical data for all trading pairs from the database.
+
+        Args:
+            conn: SQLite connection.
+
+        Returns:
+            pd.DataFrame: Historical data for all trading pairs.
+        """
+        query = '''
+        SELECT * FROM usdt_4h 
+        ORDER BY open_time DESC
+        '''
+        df = pd.read_sql_query(query, conn)
+        return df
+
+    def calculate_z_scores_for_pair(self, conn, symbol):
+        """
+        Calculate Z-scores for the percentage change and volume for the given symbol
+        using all available data in the database (pair-specific Z-scores).
+        
+        Args:
+            conn: SQLite connection.
+            symbol: The trading pair symbol (e.g., 'BTCUSDT').
+
+        Returns:
+            pd.DataFrame: Z-scores for the given symbol.
+        """
+        # Get historical data for the pair
+        historical_data = self.get_historical_data_for_pair(conn, symbol)
+        if historical_data.empty:
             return None
+
+        # Calculate pair-specific Z-scores for percentage change and volume
+        historical_data['z_rate_change_pair'] = zscore(historical_data['rate_change'])
+        historical_data['z_volume_pair'] = zscore(historical_data['quote_volume'])
+        historical_data['z_combined_pair'] = historical_data['z_rate_change_pair'] * historical_data['z_volume_pair']
+
+        return historical_data
+
+    def calculate_z_scores_across_pairs(self, conn):
+        """
+        Calculate Z-scores for the percentage change and volume across all pairs
+        using all available data in the database (cross-pair Z-scores).
+        
+        Args:
+            conn: SQLite connection.
+
+        Returns:
+            pd.DataFrame: Z-scores across all pairs.
+        """
+        # Get historical data for all pairs
+        historical_data_all = self.get_historical_data_all_pairs(conn)
+        if historical_data_all.empty:
+            return None
+
+        # Calculate cross-pair Z-scores for percentage change and volume
+        historical_data_all['z_rate_change_all_pairs'] = zscore(historical_data_all['rate_change'])
+        historical_data_all['z_volume_all_pairs'] = zscore(historical_data_all['quote_volume'])
+        historical_data_all['z_combined_all_pairs'] = historical_data_all['z_rate_change_all_pairs'] * historical_data_all['z_volume_all_pairs']
+
+        return historical_data_all
 
     def save_candlestick_data_to_db(self, data, db_file="trading_data.db"):
-        """Save the candlestick data to the SQLite database."""
+        """
+        Save the candlestick data to the SQLite database, including the Z-scores.
+        """
         conn = sqlite3.connect(db_file)
         cursor = conn.cursor()
 
@@ -78,14 +103,16 @@ class DataProcessor:
             # Insert the new data into the database
             cursor.execute('''
             INSERT INTO usdt_4h 
-            (symbol, open_time, close_time, open_price, high_price, low_price, close_price, volume, quote_volume, rate_change, z_quote_volume, z_pct_change, z_combined)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (symbol, open_time, close_time, open_price, high_price, low_price, close_price, volume, quote_volume, rate_change, 
+            z_rate_change_pair, z_volume_pair, z_combined_pair, z_rate_change_all_pairs, z_volume_all_pairs, z_combined_all_pairs)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 row['symbol'], row['open_time'], row['close_time'],
                 row['open_price'], row['high_price'], row['low_price'], row['close_price'],
-                row['volume'], row['quote_volume'], row['pct_change'],
-                row.get('z_quote_volume', None), row.get('z_pct_change', None),
-                row.get('z_combined', None)
+                row['volume'], row['quote_volume'], row['rate_change'],
+                row.get('z_rate_change_pair', None), row.get('z_volume_pair', None),
+                row.get('z_combined_pair', None), row.get('z_rate_change_all_pairs', None),
+                row.get('z_volume_all_pairs', None), row.get('z_combined_all_pairs', None)
             ))
 
         conn.commit()
