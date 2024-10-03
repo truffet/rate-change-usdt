@@ -35,6 +35,7 @@ async def main():
     usdt_pairs = api_client.get_usdt_pairs()
 
     for symbol in usdt_pairs:
+<<<<<<< HEAD
         # Fetch the most recent completed candlestick time
         most_recent_candle = api_client.get_most_recent_candle_time()
 
@@ -50,6 +51,21 @@ async def main():
         # Backfill data for missing intervals
         data_processor.backfill_missing_data(api_client, conn, symbol, latest_time_in_db, most_recent_candle)
 
+=======
+        # Fetch the latest candlestick data for each symbol
+        latest_candlestick = api_client.fetch_candlestick_data_by_time(symbol, None, None)
+
+        if not latest_candlestick:
+            logging.error(f"No latest candlestick data found for {symbol}.")
+            continue
+
+        # Check for missing data, backfill if necessary
+        missing_intervals = data_processor.check_and_clean_data(conn, symbol, latest_candlestick[-1][6])
+
+        if missing_intervals:
+            data_processor.backfill_missing_data(api_client, conn, symbol, missing_intervals)
+
+>>>>>>> parent of 1d2bffb (update before handling timestamp issue)
         # Re-fetch complete data after backfilling
         df = data_processor.calculate_z_scores_for_pair(conn, symbol)
 
