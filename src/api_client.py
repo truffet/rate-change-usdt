@@ -14,7 +14,7 @@ class BinanceAPI:
         """Fetches all actively traded USDT pairs from Binance."""
         try:
             response = requests.get(f"{self.BASE_URL}{self.exchange_info_endpoint}")
-            response.raise_for_status()  # Raise an exception for 4XX/5XX errors
+            response.raise_for_status()
             symbols = response.json()['symbols']
             usdt_pairs = [
                 symbol['symbol'] 
@@ -44,7 +44,7 @@ class BinanceAPI:
             'symbol': symbol,
             'interval': self.interval,
             'startTime': start_time,
-            'limit': limit  # Fetch up to 'limit' candles in one request
+            'limit': limit
         }
         if end_time:
             params['endTime'] = end_time
@@ -57,4 +57,20 @@ class BinanceAPI:
             return candles
         except requests.RequestException as e:
             logging.error(f"Error fetching candlestick data for {symbol}: {e}")
+            return None
+
+    def get_most_recent_candle_time(self):
+        """
+        Fetch the most recent completed candlestick time for a 4-hour interval.
+        
+        Returns:
+            int: Most recent completed candlestick time in milliseconds.
+        """
+        try:
+            response = requests.get(f"{self.BASE_URL}{self.kline_endpoint}", params={'symbol': 'BTCUSDT', 'interval': '4h', 'limit': 1})
+            response.raise_for_status()
+            most_recent_candle = response.json()[0]
+            return most_recent_candle[6]  # Close time in milliseconds
+        except requests.RequestException as e:
+            logging.error(f"Error fetching the most recent candlestick time: {e}")
             return None
