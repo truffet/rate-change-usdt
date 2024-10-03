@@ -58,3 +58,19 @@ class BinanceAPI:
         except requests.RequestException as e:
             logging.error(f"Error fetching candlestick data for {symbol}: {e}")
             return None
+
+    def get_most_recent_candle_time(self):
+        """
+        Fetch the most recent completed candlestick time for a 4-hour interval.
+        
+        Returns:
+            int: Most recent completed candlestick time in milliseconds.
+        """
+        try:
+            response = requests.get(f"{self.BASE_URL}{self.kline_endpoint}", params={'symbol': 'BTCUSDT', 'interval': '4h', 'limit': 1})
+            response.raise_for_status()
+            most_recent_candle = response.json()[0]
+            return most_recent_candle[6]  # Close time in milliseconds
+        except requests.RequestException as e:
+            logging.error(f"Error fetching the most recent candlestick time: {e}")
+            return None

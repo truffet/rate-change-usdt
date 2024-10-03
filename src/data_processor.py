@@ -20,15 +20,15 @@ class DataProcessor:
         if not candlestick_data:
             return None
 
-        open_time = candlestick_data[0][0]  # Keep in milliseconds
-        close_time = candlestick_data[-1][6]  # Keep in milliseconds
+        open_time = candlestick_data[0]  # Already in milliseconds
+        close_time = candlestick_data[6]  # Already in milliseconds
         
-        open_price = float(candlestick_data[0][1])
-        high_price = float(candlestick_data[0][2])
-        low_price = float(candlestick_data[0][3])
-        close_price = float(candlestick_data[0][4])
-        volume = float(candlestick_data[0][5])
-        quote_volume = float(candlestick_data[0][7])
+        open_price = float(candlestick_data[1])
+        high_price = float(candlestick_data[2])
+        low_price = float(candlestick_data[3])
+        close_price = float(candlestick_data[4])
+        volume = float(candlestick_data[5])
+        quote_volume = float(candlestick_data[7])
 
         # Calculate rate change
         rate_change = (close_price - open_price) / open_price * 100
@@ -87,93 +87,73 @@ class DataProcessor:
 
         return df_pair
 
-    def check_and_clean_data(self, conn, symbol, latest_binance_timestamp):
+    def get_latest_time_in_db(self, conn, symbol):
         """
-        Check for missing 4-hour intervals for the given trading pair.
-        Also, remove data older than one year from the database.
-        
+        Fetch the latest timestamp of the data in the database for a given symbol.
+        This is used to determine where to start backfilling.
+
         Args:
             conn: SQLite connection.
             symbol: The trading pair symbol (e.g., 'BTCUSDT').
-            latest_binance_timestamp: Timestamp of the most recent 4-hour candlestick from Binance.
-        
+
         Returns:
-            List of missing time intervals (start_time, end_time) tuples.
+            int: The latest open_time in milliseconds.
         """
         query = '''
-        SELECT open_time FROM usdt_4h 
-        WHERE symbol = ? 
-        ORDER BY open_time DESC
+        SELECT MAX(open_time) FROM usdt_4h WHERE symbol = ?
         '''
-        df = pd.read_sql_query(query, conn, params=(symbol,))
-
-        # Convert open_time from milliseconds to datetime
-        df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')  # Ensure conversion from milliseconds
-
-        # Calculate the timestamp 1 year before the latest Binance timestamp
-        one_year_ago = datetime.utcfromtimestamp(latest_binance_timestamp / 1000) - timedelta(days=365)
-
-        # Delete data older than one year
         cursor = conn.cursor()
-        cursor.execute('''
-            DELETE FROM usdt_4h 
-            WHERE symbol = ? 
-            AND open_time < ?
-        ''', (symbol, one_year_ago.strftime('%Y-%m-%d %H:%M:%S')))
-        conn.commit()
-        print(f"Deleted data older than one year for {symbol}.")
+        cursor.execute(query, (symbol,))
+        latest_time = cursor.fetchone()[0]
 
-        # Identify missing intervals by navigating backwards from the latest timestamp
-        missing_intervals = []
-        current_time = datetime.utcfromtimestamp(latest_binance_timestamp / 1000)
+        if latest_time is not None:
+            return int(latest_time)
+        return None
 
-        while current_time > one_year_ago:
-            if current_time not in df['open_time'].values:
-                start_time = int(current_time.timestamp() * 1000)
-                end_time = int((current_time + timedelta(hours=4)).timestamp() * 1000)
-                missing_intervals.append((start_time, end_time))
-            
-            # Go back 4 hours
-            current_time -= timedelta(hours=4)
-
-        return missing_intervals
-
-    def backfill_missing_data(self, api_client, conn, symbol, missing_intervals):
+    def backfill_missing_data(self, api_client, conn, symbol, start_time, end_time):
         """
         Backfill missing data for the given trading pair.
-        This function utilizes Binance's 1000 candle limit to fetch data more efficiently.
+        Fetches candles from Binance in batches (up to 1000 candles) and inserts them into the database.
         
         Args:
             api_client: Binance API client.
             conn: SQLite connection.
             symbol: The trading pair symbol (e.g., 'BTCUSDT').
-            missing_intervals: List of (start_time, end_time) tuples to backfill.
+            start_time: The start time in milliseconds to backfill from.
+            end_time: The end time in milliseconds (most recent candle).
         """
         cursor = conn.cursor()
 
-        if missing_intervals:
-            start_time = missing_intervals[0][0]
-            end_time = missing_intervals[-1][1]
-            
-            # Calculate the number of missing candles (we assume 4-hour candles)
-            missing_hours = (end_time - start_time) // (1000 * 3600)  # Convert to hours
-            total_candles = missing_hours // 4  # Number of 4-hour candlesticks
+        while start_time < end_time:
+            # Calculate the time range to fetch (up to 1000 candles at 4-hour intervals)
+            time_diff = end_time - start_time
+            total_candles = time_diff // (4 * 3600 * 1000)  # Number of 4-hour candles
+            limit = min(1000, total_candles)
 
-            # Fetch data in batches up to Binance's 1000 candle limit
-            while total_candles > 0:
-                fetch_limit = min(1000, total_candles)
-                candlestick_data = api_client.fetch_candlestick_data_by_time(symbol, start_time, end_time=None, limit=fetch_limit)
+            # If the limit is 0, it means there's no data to fetch, so we break the loop
+            if limit <= 0:
+                print(f"No more candles to fetch for {symbol}. Breaking the loop.")
+                break
 
-                if candlestick_data:
-                    # Process and save the batch of backfilled data
-                    processed_data = [self.process_usdt_pair_data(symbol, [candle]) for candle in candlestick_data]
-                    processed_data = [data for data in processed_data if data]  # Filter out None values
-                    if processed_data:
-                        self.save_candlestick_data_to_db(processed_data, conn)
+            candlestick_data = api_client.fetch_candlestick_data_by_time(symbol, start_time, end_time, limit)
 
-                # Move the start_time forward by the number of candles we just fetched
-                start_time += fetch_limit * 4 * 3600 * 1000  # Move forward by 4 hours per candle in milliseconds
-                total_candles -= fetch_limit
+            if not candlestick_data:
+                print(f"No data returned for {symbol}. Breaking the loop.")
+                break
+
+            # Process and save the batch of backfilled data
+            processed_data = [self.process_usdt_pair_data(symbol, candle) for candle in candlestick_data]
+            processed_data = [data for data in processed_data if data]  # Filter out None values
+            if processed_data:
+                self.save_candlestick_data_to_db(processed_data, conn)
+
+            # Move the start_time forward by the number of candles we just fetched
+            start_time = processed_data[-1]['close_time']  # Set the start_time to the last candle's close time
+
+            # Safety check: If somehow the start_time exceeds the end_time, we stop the loop
+            if start_time >= end_time:
+                print(f"Reached the end time for {symbol}. Ending the backfill.")
+                break
 
         conn.commit()
         print(f"Backfill completed for {symbol}.")
@@ -193,9 +173,12 @@ class DataProcessor:
                 print(f"Skipping row due to missing price data: {row}")
                 continue
 
+            # Print statements to debug
+            print(f"Before conversion: open_time: {row['open_time']} ({type(row['open_time'])}), close_time: {row['close_time']} ({type(row['close_time'])})")
+
             # Ensure that open_time and close_time are in milliseconds
-            open_time_ms = row['open_time'] if isinstance(row['open_time'], int) else int(row['open_time'].timestamp() * 1000)
-            close_time_ms = row['close_time'] if isinstance(row['close_time'], int) else int(row['close_time'].timestamp() * 1000)
+            open_time_ms = int(row['open_time']) if isinstance(row['open_time'], int) else int(pd.Timestamp(row['open_time']).timestamp() * 1000)
+            close_time_ms = int(row['close_time']) if isinstance(row['close_time'], int) else int(pd.Timestamp(row['close_time']).timestamp() * 1000)
 
             # Check if the data for this symbol and open_time already exists
             cursor.execute('''
