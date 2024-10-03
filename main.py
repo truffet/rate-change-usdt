@@ -34,23 +34,23 @@ async def main():
     # Fetch actively traded USDT pairs
     usdt_pairs = api_client.get_usdt_pairs()
 
-    # Get the most recent completed 4-hour candle
-    most_recent_candle = api_client.get_most_recent_candle_time()
-
     for symbol in usdt_pairs:
-        # Get the latest time in DB for this symbol
+        # Fetch the most recent completed candlestick time
+        most_recent_candle = api_client.get_most_recent_candle_time()
+
+        # Get the latest time in the database for this symbol
         latest_time_in_db = data_processor.get_latest_time_in_db(conn, symbol)
 
+        # If no data exists in the DB, set latest_time_in_db to 1 year before the most recent candle
         if latest_time_in_db is None:
-            logging.info(f"No data found for {symbol}, backfilling entire year of data.")
-            # If no data is found in DB, backfill the past year
-            one_year_ago = most_recent_candle - 365 * 24 * 3600 * 1000  # Subtract one year in milliseconds
-            latest_time_in_db = one_year_ago
+            latest_time_in_db = most_recent_candle - 365 * 24 * 60 * 60 * 1000  # 1 year in milliseconds
 
-        # Backfill missing data
+        logging.info(f"Backfilling data for {symbol} from {latest_time_in_db} to {most_recent_candle}.")
+
+        # Backfill data for missing intervals
         data_processor.backfill_missing_data(api_client, conn, symbol, latest_time_in_db, most_recent_candle)
 
-        # Calculate Z-scores for the specific pair and all pairs
+        # Re-fetch complete data after backfilling
         df = data_processor.calculate_z_scores_for_pair(conn, symbol)
 
         # Save the processed data into the database
