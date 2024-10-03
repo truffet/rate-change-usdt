@@ -1,11 +1,10 @@
 import logging
 import asyncio
+import sqlite3
 from src.config_loader import ConfigLoader
 from src.api_client import BinanceAPI
 from src.data_processor import DataProcessor
 from src.telegram_client import TelegramBot
-from src.utils import get_latest_window
-import sqlite3
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -15,44 +14,50 @@ async def main():
     
     # Load configuration from config.json
     try:
-        config = ConfigLoader.load_config()
+        config = ConfigLoader.load_config()  # Load and validate the config
     except Exception as e:
         logging.error(f"Failed to load configuration: {e}")
         return
 
     bot_token = config['telegram']['bot_token']
     chat_id = config['telegram']['chat_id']
-    interval_str = config['interval']
+    interval = config['interval']
 
     # Initialize the API client, data processor, and Telegram bot
-    api_client = BinanceAPI(interval=interval_str)
+    api_client = BinanceAPI(interval=interval)
     data_processor = DataProcessor()
     telegram_bot = TelegramBot(bot_token, chat_id)
 
-    # Get the latest time window based on the interval from config
-    start_time, end_time = get_latest_window(interval_str)
-
-    # Open the database connection
+    # Create SQLite connection
     conn = sqlite3.connect('trading_data.db')
 
-    # Fetch the actively traded USDT pairs
+    # Fetch actively traded USDT pairs
     usdt_pairs = api_client.get_usdt_pairs()
 
-    # Calculate Z-scores for each pair (pair-specific and cross-pair)
     for symbol in usdt_pairs:
-        # Pair-specific Z-scores
-        pair_z_scores = data_processor.calculate_z_scores_for_pair(conn, symbol)
-        if pair_z_scores is not None:
-            data_processor.save_candlestick_data_to_db(pair_z_scores.to_dict(orient='records'))
+        # Fetch the latest candlestick data for each symbol
+        latest_candlestick = api_client.fetch_candlestick_data_by_time(symbol, None, None)
 
-    # Cross-pair Z-scores
-    cross_pair_z_scores = data_processor.calculate_z_scores_across_pairs(conn)
-    if cross_pair_z_scores is not None:
-        data_processor.save_candlestick_data_to_db(cross_pair_z_scores.to_dict(orient='records'))
+        if not latest_candlestick:
+            logging.error(f"No latest candlestick data found for {symbol}.")
+            continue
 
+        # Check for missing data, backfill if necessary
+        missing_intervals = data_processor.check_and_clean_data(conn, symbol, latest_candlestick[-1][6])
+
+        if missing_intervals:
+            data_processor.backfill_missing_data(api_client, conn, symbol, missing_intervals)
+
+        # Re-fetch complete data after backfilling
+        df = data_processor.calculate_z_scores_for_pair(conn, symbol)
+
+        # Save the processed data into the database
+        data_processor.save_candlestick_data_to_db(df.to_dict(orient='records'), conn)
+
+    # Close the connection
     conn.close()
 
     logging.info("Script completed successfully.")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main())  # Use asyncio to run the main function
