@@ -9,18 +9,27 @@ class TelegramBot:
         self.bot = Bot(token=self.bot_token)
 
     async def send_candlestick_summary(self, df, open_time, close_time):
-        """Send a summary of the candlestick data to Telegram."""
+        """Send a summary of the filtered candlestick data to Telegram."""
         try:
+            # Filter pairs where either combined Z-score has an absolute value >= 2
+            filtered_df = df[
+                (df['z_combined_pair'].abs() >= 2) | (df['z_combined_all_pairs'].abs() >= 2)
+            ]
+
+            if filtered_df.empty:
+                logging.info("No pairs meet the Z-score threshold, no message sent.")
+                return
+
             # Prepare message header with open and close times
-            full_message = f"📅 **Candlestick Data**\nOpen Time: {open_time} | Close Time: {close_time}\n\n"
+            full_message = f"📅 **Candlestick Data (Filtered)**\nOpen Time: {open_time} | Close Time: {close_time}\n\n"
             
-            # Loop through each row in the DataFrame and add trading pair info
-            for _, row in df.iterrows():
-                rate_change_icon = "🔺" if row['pct_change'] > 0 else "🔻"
-                volume_icon = "🟩" if row['pct_change'] > 0 else "🟥"
+            # Loop through each row in the filtered DataFrame and add trading pair info
+            for _, row in filtered_df.iterrows():
+                rate_change_icon = "🔺" if row['rate_change'] > 0 else "🔻"
+                volume_icon = "🟩" if row['rate_change'] > 0 else "🟥"
                 
                 full_message += (
-                    f"💲 {row['symbol']} {rate_change_icon}{row['pct_change']:.2f}% {volume_icon}{row['quote_volume']:.0f} USDT\n"
+                    f"💲 {row['symbol']} {rate_change_icon}{row['rate_change']:.2f}% {volume_icon}{row['quote_volume']:.0f} USDT\n"
                     f"| Pair-Specific Z-Scores: R-Z: {row['z_rate_change_pair']:.2f} | V-Z: {row['z_volume_pair']:.2f} | C-Z: {row['z_combined_pair']:.2f}\n"
                     f"| Cross-Pair Z-Scores: R-Z: {row['z_rate_change_all_pairs']:.2f} | V-Z: {row['z_volume_all_pairs']:.2f} | C-Z: {row['z_combined_all_pairs']:.2f}\n\n"
                 )

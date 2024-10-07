@@ -37,7 +37,7 @@ class DataProcessor:
 
     def calculate_z_scores_for_last_completed_candle(self, conn, symbol):
         """Calculate Z-scores for the last completed 4-hour candle for a specific trading pair."""
-        query_last_candle = '''SELECT * FROM usdt_4h WHERE symbol = ? ORDER BY open_time DESC LIMIT 1'''
+        query_last_candle = '''SELECT * FROM usdt_4h WHERE symbol = ?'''
         df_pair = pd.read_sql_query(query_last_candle, conn, params=(symbol,))
         
         query_all = '''SELECT * FROM usdt_4h WHERE open_time = ?'''
