@@ -14,7 +14,7 @@ class BinanceAPI:
         """Fetches all actively traded USDT pairs from Binance."""
         try:
             response = requests.get(f"{self.BASE_URL}{self.exchange_info_endpoint}")
-            response.raise_for_status()
+            response.raise_for_status()  # Raise an exception for 4XX/5XX errors
             symbols = response.json()['symbols']
             usdt_pairs = [
                 symbol['symbol'] 
@@ -44,7 +44,7 @@ class BinanceAPI:
             'symbol': symbol,
             'interval': self.interval,
             'startTime': start_time,
-            'limit': limit
+            'limit': limit  # Fetch up to 'limit' candles in one request
         }
         if end_time:
             params['endTime'] = end_time
