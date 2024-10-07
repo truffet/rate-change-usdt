@@ -46,7 +46,7 @@ async def main():
 
     # After all pairs have been backfilled, calculate Z-scores
     for symbol in usdt_pairs:
-        df = data_processor.calculate_z_scores_for_pair(conn, symbol)
+        df = data_processor.calculate_z_scores_for_last_completed_candle(conn, symbol)
         data_processor.save_candlestick_data_to_db(df.to_dict(orient='records'), conn)
 
     # Close the database connection

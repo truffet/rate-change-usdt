@@ -35,12 +35,13 @@ class DataProcessor:
             "close_time": close_time
         }
 
-    def calculate_z_scores_for_pair(self, conn, symbol):
-        """Calculate Z-scores for a specific trading pair."""
-        query_pair = '''SELECT * FROM usdt_4h WHERE symbol = ?'''
-        df_pair = pd.read_sql_query(query_pair, conn, params=(symbol,))
-        query_all = '''SELECT * FROM usdt_4h'''
-        df_all = pd.read_sql_query(query_all, conn)
+    def calculate_z_scores_for_last_completed_candle(self, conn, symbol):
+        """Calculate Z-scores for the last completed 4-hour candle for a specific trading pair."""
+        query_last_candle = '''SELECT * FROM usdt_4h WHERE symbol = ? ORDER BY open_time DESC LIMIT 1'''
+        df_pair = pd.read_sql_query(query_last_candle, conn, params=(symbol,))
+        
+        query_all = '''SELECT * FROM usdt_4h WHERE open_time = ?'''
+        df_all = pd.read_sql_query(query_all, conn, params=(df_pair['open_time'].values[0],))
 
         df_pair['open_time'] = pd.to_datetime(df_pair['open_time'], unit='ms')
         df_all['open_time'] = pd.to_datetime(df_all['open_time'], unit='ms')
@@ -106,21 +107,12 @@ class DataProcessor:
             if None in (row['open_price'], row['high_price'], row['low_price'], row['close_price']):
                 continue
 
-
-            # debug print to be removed after
-            print("open time:")
-            print(row['open_time'])
-            print(type(row['open_time']))
-            print("close time:")
-            print(row['close_time'])
-            print(type(row['close_time']))
-
-            close_time_ms = row['close_time']
-
             if isinstance(row['open_time'], pd.Timestamp):
                 open_time_ms = int(row['open_time'].timestamp() * 1000)
             else:
                 open_time_ms = int(row['open_time'])
+
+            close_time_ms = int(row['close_time'])
 
             cursor.execute('SELECT COUNT(*) FROM usdt_4h WHERE symbol = ? AND open_time = ?', (row['symbol'], open_time_ms))
             exists = cursor.fetchone()[0]
