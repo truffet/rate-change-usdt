@@ -91,3 +91,4 @@ venv/
 
 # macOS system files
 .DS_Store
+trading_data.db
