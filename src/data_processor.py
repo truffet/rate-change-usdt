@@ -174,7 +174,9 @@ class DataProcessor:
         now = datetime.now(timezone.utc)  # Get the current time in UTC
         # Round down to the nearest 4-hour interval
         hours_to_subtract = now.hour % 4
-        most_recent_candle_time = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=hours_to_subtract)
+        # Subtract an extra 4 hours to get the start of the last completed candle
+        most_recent_candle_time = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=hours_to_subtract + 4)
 
         # Convert to milliseconds
         return int(most_recent_candle_time.timestamp() * 1000)
+
