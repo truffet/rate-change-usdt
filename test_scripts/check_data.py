@@ -3,13 +3,25 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import argparse
 
-def fetch_data_from_db(conn, symbol):
-    """Fetch all the data for a given trading pair from the SQLite database."""
+def fetch_data_from_db(conn, symbol, num_days):
+    """Fetch data for the last `num_days` for a given trading pair from the SQLite database."""
+    # Calculate how many 4-hour candles we need to fetch
+    num_candles = num_days * 6
+
+    # Query the last `num_candles` for the given symbol, ordered by open_time in descending order
     query = '''SELECT open_time, open_price, high_price, low_price, close_price, 
                       rate_change, volume, z_rate_change_pair, z_volume_pair, 
                       z_combined_pair, z_rate_change_all_pairs, z_volume_all_pairs, z_combined_all_pairs
-               FROM usdt_4h WHERE symbol = ? ORDER BY open_time ASC'''
-    return pd.read_sql_query(query, conn, params=(symbol,))
+               FROM usdt_4h 
+               WHERE symbol = ? 
+               ORDER BY open_time DESC
+               LIMIT ?'''
+    df = pd.read_sql_query(query, conn, params=(symbol, num_candles))
+
+    # Reverse the order so the oldest candles come first
+    df = df.iloc[::-1].reset_index(drop=True)
+    
+    return df
 
 def plot_candlestick(df, symbol):
     """Plot the 4-hour candlestick chart."""
@@ -73,12 +85,12 @@ def plot_z_scores(df, symbol):
     plt.tight_layout()
     plt.show()
 
-def main(symbol):
+def main(symbol, num_days):
     # Connect to the SQLite database
     conn = sqlite3.connect('trading_data.db')
 
-    # Fetch data for the specified trading pair
-    df = fetch_data_from_db(conn, symbol)
+    # Fetch data for the specified trading pair and number of days
+    df = fetch_data_from_db(conn, symbol, num_days)
 
     # Convert open_time to datetime for better plotting
     df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
@@ -93,8 +105,9 @@ def main(symbol):
     conn.close()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Plot graphs for a given trading pair from the database.")
+    parser = argparse.ArgumentParser(description="Plot graphs for a given trading pair and number of days from the database.")
     parser.add_argument("symbol", type=str, help="The symbol of the trading pair (e.g., BTCUSDT)")
+    parser.add_argument("num_days", type=int, help="The number of days to fetch data for (e.g., 7)")
     args = parser.parse_args()
 
-    main(args.symbol)
+    main(args.symbol, args.num_days)
