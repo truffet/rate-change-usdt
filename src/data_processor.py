@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 import sqlite3
 from scipy.stats import zscore
@@ -153,3 +153,18 @@ class DataProcessor:
         if result and result[0]:
             return result[0]
         return None
+
+    def get_most_recent_completed_candle_time(self):
+        """
+        Calculate the most recent completed candlestick time for a 4-hour interval.
+        
+        Returns:
+            int: The most recent completed 4-hour candlestick time in milliseconds.
+        """
+        now = datetime.now(timezone.utc)  # Get the current time in UTC
+        # Round down to the nearest 4-hour interval
+        hours_to_subtract = now.hour % 4
+        most_recent_candle_time = now.replace(minute=0, second=0, microsecond=0) - timedelta(hours=hours_to_subtract)
+
+        # Convert to milliseconds
+        return int(most_recent_candle_time.timestamp() * 1000)

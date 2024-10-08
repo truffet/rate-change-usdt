@@ -43,5 +43,9 @@ pip3 install python-telegram-bot
 # Install APScheduler (for cron-like scheduling)
 pip3 install apscheduler
 
+# Install Matplotlib
+pip3 install matplotlib
+
+
 # Final message
 echo "Python and necessary Python packages installed successfully."
