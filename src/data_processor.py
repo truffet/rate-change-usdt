@@ -35,26 +35,36 @@ class DataProcessor:
             "close_time": close_time
         }
 
-    def calculate_z_scores_for_last_completed_candle(self, conn, symbol):
-        """Calculate Z-scores for the last completed 4-hour candle for a specific trading pair."""
-        query_last_candle = '''SELECT * FROM usdt_4h WHERE symbol = ?'''
-        df_pair = pd.read_sql_query(query_last_candle, conn, params=(symbol,))
+    def calculate_z_scores_for_pair(self, conn, symbol):
+        """Calculate Z-scores for a specific trading pair (pair-specific Z-scores)."""
         
-        query_all = '''SELECT * FROM usdt_4h WHERE open_time = ?'''
-        df_all = pd.read_sql_query(query_all, conn, params=(df_pair['open_time'].values[0],))
+        # query specified pair
+        query_pair = '''SELECT * FROM usdt_4h WHERE symbol = ?'''
+        df_pair = pd.read_sql_query(query_pair, conn, params=(symbol,))
 
         df_pair['open_time'] = pd.to_datetime(df_pair['open_time'], unit='ms')
-        df_all['open_time'] = pd.to_datetime(df_all['open_time'], unit='ms')
 
         df_pair['z_rate_change_pair'] = zscore(df_pair['rate_change'])
         df_pair['z_volume_pair'] = zscore(df_pair['volume'])
         df_pair['z_combined_pair'] = df_pair['z_rate_change_pair'] * df_pair['z_volume_pair']
 
-        df_pair['z_rate_change_all_pairs'] = zscore(df_all['rate_change'])
-        df_pair['z_volume_all_pairs'] = zscore(df_all['quote_volume'])
-        df_pair['z_combined_all_pairs'] = df_pair['z_rate_change_all_pairs'] * df_pair['z_volume_all_pairs']
-
         return df_pair
+
+    def calculate_z_scores_for_all_pairs(self, conn):
+        """Calculate Z-scores across all trading pairs for the last completed 4-hour candle."""
+        
+        # Query all pairs
+        query_all = '''SELECT * FROM usdt_4h'''
+        df_all = pd.read_sql_query(query_all, conn)
+
+        df_all['open_time'] = pd.to_datetime(df_all['open_time'], unit='ms')
+
+        # Calculate Z-scores for the whole dataset
+        df_all['z_rate_change_all_pairs'] = zscore(df_all['rate_change'])
+        df_all['z_volume_all_pairs'] = zscore(df_all['quote_volume'])
+        df_all['z_combined_all_pairs'] = df_all['z_rate_change_all_pairs'] * df_all['z_volume_all_pairs']
+
+        return df_all
 
     def check_and_clean_data(self, conn, symbol, latest_binance_timestamp):
         query = '''SELECT open_time FROM usdt_4h WHERE symbol = ? ORDER BY open_time DESC'''

@@ -55,10 +55,14 @@ async def main():
         # Backfill missing data
         data_processor.backfill_missing_data(api_client, conn, symbol, start_time, most_recent_candle)
 
-    # After all pairs have been backfilled, calculate Z-scores
-    for symbol in usdt_pairs:
-        df = data_processor.calculate_z_scores_for_last_completed_candle(conn, symbol)
+
+        # Calculate pair-specific Z-scores
+        df = data_processor.calculate_z_scores_for_pair(conn, symbol)
         data_processor.save_candlestick_data_to_db(df.to_dict(orient='records'), conn)
+
+    # Calculate cross-pair Z-scores once for all pairs
+    df = data_processor.calculate_z_scores_for_all_pairs(conn)
+    data_processor.save_candlestick_data_to_db(df.to_dict(orient='records'), conn)
 
     # Fetch the latest completed candlestick data for all pairs
     query_last_candle = '''SELECT * FROM usdt_4h WHERE open_time = (SELECT MAX(open_time) FROM usdt_4h)'''
