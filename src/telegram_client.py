@@ -20,8 +20,11 @@ class TelegramBot:
                 logging.info("No pairs meet the Z-score threshold, no message sent.")
                 return
 
-            # Prepare message header with open and close times
-            full_message = f"📅 **Binance Spot USDT Market Recap**\nOpen Time: {open_time} | Close Time: {close_time}\n\n"
+            # Format the open and close time as: 'YYYY-MM-DD: HH:MM:SS -> HH:MM:SS'
+            date_str = open_time.strftime('%Y-%m-%d')
+            open_time_str = open_time.strftime('%H:%M:%S')
+            close_time_str = close_time.strftime('%H:%M:%S')
+            full_message = f"Binance Spot USDT Market Recap\n{date_str}: {open_time_str} -> {close_time_str}\n\n"
 
             # Create two lists for positive and negative changes
             pos_lines = []
@@ -51,4 +54,3 @@ class TelegramBot:
 
         except Exception as e:
             logging.error(f"Failed to send message: {e}")
-
