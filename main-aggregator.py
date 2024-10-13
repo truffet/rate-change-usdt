@@ -125,7 +125,6 @@ def calculate_z_scores_for_pair(agg_df):
     """
     agg_df['z_rate_change_pair'] = zscore(agg_df['rate_change'])
     agg_df['z_volume_pair'] = zscore(agg_df['volume'])
-    agg_df['z_combined_pair'] = agg_df['z_rate_change_pair'] * agg_df['z_volume_pair']
 
     return agg_df
 
@@ -135,7 +134,6 @@ def calculate_cross_pair_z_scores(conn, full_agg_df):
     """
     full_agg_df['z_rate_change_all_pairs'] = zscore(full_agg_df['rate_change'])
     full_agg_df['z_volume_all_pairs'] = zscore(full_agg_df['volume'])
-    full_agg_df['z_combined_all_pairs'] = full_agg_df['z_rate_change_all_pairs'] * full_agg_df['z_volume_all_pairs']
 
     return full_agg_df
 
@@ -158,12 +156,12 @@ def save_aggregated_candles_to_db(aggregated_df, conn, table, symbol):
         cursor.execute(f'''
         INSERT INTO {table} 
         (symbol, open_time, close_time, open_price, close_price, high_price, low_price, volume, rate_change, 
-        z_rate_change_pair, z_volume_pair, z_combined_pair, z_rate_change_all_pairs, z_volume_all_pairs, z_combined_all_pairs)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        z_rate_change_pair, z_volume_pair, z_rate_change_all_pairs, z_volume_all_pairs)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             symbol, open_time_ms, close_time_ms, row['open_price'], row['close_price'], row['high_price'], row['low_price'], 
-            row['volume'], row['rate_change'], row['z_rate_change_pair'], row['z_volume_pair'], row['z_combined_pair'], 
-            row['z_rate_change_all_pairs'], row['z_volume_all_pairs'], row['z_combined_all_pairs']
+            row['volume'], row['rate_change'], row['z_rate_change_pair'], row['z_volume_pair'], 
+            row['z_rate_change_all_pairs'], row['z_volume_all_pairs']
         ))
 
     conn.commit()

@@ -46,7 +46,6 @@ class DataProcessor:
 
         df_pair['z_rate_change_pair'] = zscore(df_pair['rate_change'])
         df_pair['z_volume_pair'] = zscore(df_pair['volume'])
-        df_pair['z_combined_pair'] = df_pair['z_rate_change_pair'] * df_pair['z_volume_pair']
 
         return df_pair
 
@@ -62,7 +61,6 @@ class DataProcessor:
         # Calculate Z-scores for the whole dataset
         df_all['z_rate_change_all_pairs'] = zscore(df_all['rate_change'])
         df_all['z_volume_all_pairs'] = zscore(df_all['quote_volume'])
-        df_all['z_combined_all_pairs'] = df_all['z_rate_change_all_pairs'] * df_all['z_volume_all_pairs']
 
         return df_all
 
@@ -130,12 +128,12 @@ class DataProcessor:
             if exists:
                 cursor.execute('''
                 UPDATE usdt_4h 
-                SET z_rate_change_pair = ?, z_volume_pair = ?, z_combined_pair = ?, 
-                    z_rate_change_all_pairs = ?, z_volume_all_pairs = ?, z_combined_all_pairs = ?
+                SET z_rate_change_pair = ?, z_volume_pair = ?, 
+                    z_rate_change_all_pairs = ?, z_volume_all_pairs = ?
                 WHERE symbol = ? AND open_time = ?
                 ''', (
-                    row.get('z_rate_change_pair'), row.get('z_volume_pair'), row.get('z_combined_pair'),
-                    row.get('z_rate_change_all_pairs'), row.get('z_volume_all_pairs'), row.get('z_combined_all_pairs'),
+                    row.get('z_rate_change_pair'), row.get('z_volume_pair'),
+                    row.get('z_rate_change_all_pairs'), row.get('z_volume_all_pairs'),
                     row['symbol'], open_time_ms
                 ))
                 continue
@@ -143,13 +141,13 @@ class DataProcessor:
             cursor.execute('''
             INSERT INTO usdt_4h 
             (symbol, open_time, close_time, open_price, high_price, low_price, close_price, volume, quote_volume, rate_change, 
-            z_rate_change_pair, z_volume_pair, z_combined_pair, z_rate_change_all_pairs, z_volume_all_pairs, z_combined_all_pairs)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            z_rate_change_pair, z_volume_pair, z_rate_change_all_pairs, z_volume_all_pairs)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 row['symbol'], open_time_ms, close_time_ms, row['open_price'], row['high_price'], row['low_price'], row['close_price'],
                 row['volume'], row['quote_volume'], row['rate_change'], row.get('z_rate_change_pair'),
-                row.get('z_volume_pair'), row.get('z_combined_pair'), row.get('z_rate_change_all_pairs'),
-                row.get('z_volume_all_pairs'), row.get('z_combined_all_pairs')
+                row.get('z_volume_pair'), row.get('z_rate_change_all_pairs'),
+                row.get('z_volume_all_pairs')
             ))
 
         conn.commit()
@@ -179,4 +177,3 @@ class DataProcessor:
 
         # Convert to milliseconds
         return int(most_recent_candle_time.timestamp() * 1000)
-

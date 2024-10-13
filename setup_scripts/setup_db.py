@@ -31,12 +31,10 @@ else:
         -- Pair-specific Z-scores (Z-scores based on the trading pair's own history)
         z_rate_change_pair DECIMAL(18, 8),   -- Z-score of rate change for the specific trading pair
         z_volume_pair DECIMAL(18, 8),        -- Z-score of volume for the specific trading pair
-        z_combined_pair DECIMAL(18, 8),      -- Combined Z-score for the specific trading pair
 
         -- Cross-pair Z-scores (Z-scores based on comparison with other pairs)
         z_rate_change_all_pairs DECIMAL(18, 8),   -- Z-score of rate change across all pairs
         z_volume_all_pairs DECIMAL(18, 8),        -- Z-score of volume across all pairs
-        z_combined_all_pairs DECIMAL(18, 8),      -- Combined Z-score across all pairs
 
         UNIQUE(symbol, open_time)  -- Ensure unique data per trading pair and time
     );
@@ -61,12 +59,10 @@ else:
         -- Pair-specific Z-scores (Z-scores based on the trading pair's own history)
         z_rate_change_pair DECIMAL(18, 8),   -- Z-score of rate change for the specific trading pair
         z_volume_pair DECIMAL(18, 8),        -- Z-score of volume for the specific trading pair
-        z_combined_pair DECIMAL(18, 8),      -- Combined Z-score for the specific trading pair
 
         -- Cross-pair Z-scores (Z-scores based on comparison with other pairs)
         z_rate_change_all_pairs DECIMAL(18, 8),   -- Z-score of rate change across all pairs
         z_volume_all_pairs DECIMAL(18, 8),        -- Z-score of volume across all pairs
-        z_combined_all_pairs DECIMAL(18, 8),      -- Combined Z-score across all pairs
 
         UNIQUE(symbol, open_time)  -- Ensure unique data per trading pair and time
     );
@@ -91,12 +87,10 @@ else:
         -- Pair-specific Z-scores (Z-scores based on the trading pair's own history)
         z_rate_change_pair DECIMAL(18, 8),   -- Z-score of rate change for the specific trading pair
         z_volume_pair DECIMAL(18, 8),        -- Z-score of volume for the specific trading pair
-        z_combined_pair DECIMAL(18, 8),      -- Combined Z-score for the specific trading pair
 
         -- Cross-pair Z-scores (Z-scores based on comparison with other pairs)
         z_rate_change_all_pairs DECIMAL(18, 8),   -- Z-score of rate change across all pairs
         z_volume_all_pairs DECIMAL(18, 8),        -- Z-score of volume across all pairs
-        z_combined_all_pairs DECIMAL(18, 8),      -- Combined Z-score across all pairs
 
         UNIQUE(symbol, open_time)  -- Ensure unique data per trading pair and time
     );

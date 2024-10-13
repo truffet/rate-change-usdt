@@ -68,9 +68,10 @@ async def main():
     query_last_candle = '''SELECT * FROM usdt_4h WHERE open_time = (SELECT MAX(open_time) FROM usdt_4h)'''
     df = pd.read_sql_query(query_last_candle, conn)
 
-    # Filter pairs where either combined Z-score has an absolute value >= 2
+    # Filter pairs where Z-score for rate change or volume (pair or cross-pair) has an absolute value >= 2
     filtered_df = df[
-        (df['z_combined_pair'].abs() >= 2) | (df['z_combined_all_pairs'].abs() >= 2)
+        (df['z_rate_change_pair'].abs() >= 2) | (df['z_volume_pair'].abs() >= 2) |
+        (df['z_rate_change_all_pairs'].abs() >= 2) | (df['z_volume_all_pairs'].abs() >= 2)
     ]
 
     # Send filtered Z-scores data to Telegram
