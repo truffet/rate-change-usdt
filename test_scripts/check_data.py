@@ -1,18 +1,16 @@
 import sqlite3
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 from plotly.subplots import make_subplots
-import argparse
 
 def fetch_data_from_db(conn, symbol, num_units, grouping):
     """Fetch data from the daily or weekly table for a given symbol and units."""
     table = 'usdt_d' if grouping == 'd' else 'usdt_w'
 
     # Query the most recent num_units candles from the daily or weekly table
-    query = f'''SELECT open_time, open_price, high_price, low_price, close_price, 
-                        rate_change, volume, z_rate_change_pair, z_volume_pair, 
-                        z_combined_pair, z_rate_change_all_pairs, z_volume_all_pairs, z_combined_all_pairs
+    query = f'''SELECT open_time, open_price, high_price, low_price, close_price, volume, 
+                        z_rate_change_pair, z_volume_pair, z_combined_pair, 
+                        z_rate_change_all_pairs, z_volume_all_pairs, z_combined_all_pairs
                 FROM {table}
                 WHERE symbol = ?
                 ORDER BY open_time DESC
@@ -21,43 +19,77 @@ def fetch_data_from_db(conn, symbol, num_units, grouping):
 
     return df
 
-def plot_candlestick(fig, df, symbol, row):
-    """Add the OHLC candlestick chart to the figure."""
-    candle = go.Candlestick(x=df['open_time'],
-                            open=df['open_price'],
-                            high=df['high_price'],
-                            low=df['low_price'],
-                            close=df['close_price'],
-                            name=f"{symbol} Candlestick")
-    
-    fig.add_trace(candle, row=row, col=1)
-    
-    fig.update_xaxes(title_text="Time", row=row, col=1)
-    fig.update_yaxes(title_text="Price", row=row, col=1)
+def plot_ohlcv_with_z_scores(df, symbol):
+    """Create OHLC candlestick chart, volume chart, and Z-score heatmaps for pair and cross-pairs."""
+    # Convert open_time to numeric and then to datetime
+    df['open_time'] = pd.to_numeric(df['open_time'])
+    df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
 
-def plot_volume(fig, df, symbol, row):
-    """Add the volume bar chart to the figure."""
-    volume = go.Bar(x=df['open_time'], y=df['volume'], name=f"{symbol} Volume", marker_color='green')
-    
-    fig.add_trace(volume, row=row, col=1)
-    
-    fig.update_xaxes(title_text="Time", row=row, col=1)
-    fig.update_yaxes(title_text="Volume", row=row, col=1)
+    # Create a subplot with 8 rows: OHLC, Volume, and 3 Z-scores for pair, 3 Z-scores for cross-pairs
+    fig = make_subplots(rows=8, cols=1, shared_xaxes=True,
+                        row_heights=[0.4, 0.2, 0.13, 0.13, 0.13, 0.13, 0.13, 0.13], vertical_spacing=0.03,
+                        specs=[[{}], [{}], [{}], [{}], [{}], [{}], [{}], [{}]],
+                        subplot_titles=[f"{symbol} OHLC Candlestick",
+                                        f"{symbol} Volume",
+                                        "Z-Rate Change (Pair)", 
+                                        "Z-Volume (Pair)", 
+                                        "Z-Combined (Pair)",
+                                        "Z-Rate Change (Cross)", 
+                                        "Z-Volume (Cross)", 
+                                        "Z-Combined (Cross)"])
 
-def plot_z_scores(fig, df, symbol, start_row):
-    """Add Z-score heatmaps for both pair-specific and cross-pair Z-scores to the figure."""
-    z_pair_data = [df['z_rate_change_pair'], df['z_volume_pair'], df['z_combined_pair']]
-    z_cross_data = [df['z_rate_change_all_pairs'], df['z_volume_all_pairs'], df['z_combined_all_pairs']]
+    # OHLC candlestick chart
+    fig.add_trace(go.Candlestick(x=df['open_time'],
+                                 open=df['open_price'],
+                                 high=df['high_price'],
+                                 low=df['low_price'],
+                                 close=df['close_price'],
+                                 name='OHLC'),
+                  row=1, col=1)
 
-    # Pair-specific Z-score heatmap with separate color scales
-    for i, (z_data, name) in enumerate(zip(z_pair_data, ['Z-Rate Change (Pair)', 'Z-Volume (Pair)', 'Z-Combined (Pair)'])):
-        heatmap = go.Heatmap(z=[z_data], x=df['open_time'], y=[name], colorscale='RdBu', zmin=-3, zmax=3, colorbar_title='Z-Scores')
-        fig.add_trace(heatmap, row=start_row + i, col=1)
+    # Volume bar chart
+    fig.add_trace(go.Bar(x=df['open_time'], y=df['volume'], name='Volume', 
+                         marker_color='green'),
+                  row=2, col=1)
 
-    # Cross-pair Z-score heatmap with separate color scales
-    for i, (z_data, name) in enumerate(zip(z_cross_data, ['Z-Rate Change (Cross)', 'Z-Volume (Cross)', 'Z-Combined (Cross)'])):
-        heatmap = go.Heatmap(z=[z_data], x=df['open_time'], y=[name], colorscale='RdBu', zmin=-3, zmax=3, colorbar_title='Z-Scores')
-        fig.add_trace(heatmap, row=start_row + 3 + i, col=1)
+    # Z-Rate Change (Pair) heatmap
+    fig.add_trace(go.Heatmap(z=[df['z_rate_change_pair']], x=df['open_time'], y=["Z-Rate Change (Pair)"],
+                             colorscale='RdBu', zmin=-3, zmax=3, showscale=False),
+                  row=3, col=1)
+
+    # Z-Volume (Pair) heatmap
+    fig.add_trace(go.Heatmap(z=[df['z_volume_pair']], x=df['open_time'], y=["Z-Volume (Pair)"],
+                             colorscale='RdBu', zmin=-3, zmax=3, showscale=False), 
+                  row=4, col=1)
+
+    # Z-Combined (Pair) heatmap
+    fig.add_trace(go.Heatmap(z=[df['z_combined_pair']], x=df['open_time'], y=["Z-Combined (Pair)"],
+                             colorscale='RdBu', zmin=-3, zmax=3, showscale=False), 
+                  row=5, col=1)
+
+    # Z-Rate Change (Cross) heatmap (different Z-scale but same colors)
+    fig.add_trace(go.Heatmap(z=[df['z_rate_change_all_pairs']], x=df['open_time'], y=["Z-Rate Change (Cross)"],
+                             colorscale='RdBu', zmin=-2, zmax=2, showscale=False),
+                  row=6, col=1)
+
+    # Z-Volume (Cross) heatmap (different Z-scale but same colors)
+    fig.add_trace(go.Heatmap(z=[df['z_volume_all_pairs']], x=df['open_time'], y=["Z-Volume (Cross)"],
+                             colorscale='RdBu', zmin=-2, zmax=2, showscale=False), 
+                  row=7, col=1)
+
+    # Z-Combined (Cross) heatmap (different Z-scale but same colors)
+    fig.add_trace(go.Heatmap(z=[df['z_combined_all_pairs']], x=df['open_time'], y=["Z-Combined (Cross)"],
+                             colorscale='RdBu', zmin=-2, zmax=2, showscale=True, colorbar_x=1.02, colorbar_y=0.5, colorbar_len=0.7),
+                  row=8, col=1)
+
+    # Update layout for better visual clarity
+    fig.update_layout(height=1500, title=f'{symbol} OHLCV Chart and Pair/Cross-Pair Z-Scores', 
+                      xaxis_rangeslider_visible=False,
+                      yaxis_title='Price', 
+                      yaxis2_title='Volume')
+
+    # Show the chart
+    fig.show()
 
 def main(symbol, num_units, grouping):
     # Connect to the SQLite database
@@ -66,37 +98,15 @@ def main(symbol, num_units, grouping):
     # Fetch data for the specified trading pair and grouping (daily or weekly)
     df = fetch_data_from_db(conn, symbol, num_units, grouping)
 
-    # Convert open_time to datetime for better plotting
-    df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
-
-    # Create a subplot figure
-    fig = make_subplots(
-        rows=9, cols=1,  # We need 9 rows (2 for OHLC and volume, 3 for pair-specific Z-scores, 3 for cross-pair Z-scores)
-        shared_xaxes=True,  # Share the x-axis between all charts
-        vertical_spacing=0.03,  # Adjust spacing between charts
-        subplot_titles=[
-            f"{symbol} OHLC Candlestick", f"{symbol} Volume",
-            f"{symbol} Z-Rate Change (Pair)", f"{symbol} Z-Volume (Pair)", f"{symbol} Z-Combined (Pair)",
-            f"{symbol} Z-Rate Change (Cross)", f"{symbol} Z-Volume (Cross)", f"{symbol} Z-Combined (Cross)"
-        ]
-    )
-
-    # Add OHLC, Volume, and Z-score charts to the figure
-    plot_candlestick(fig, df, symbol, row=1)
-    plot_volume(fig, df, symbol, row=2)
-    plot_z_scores(fig, df, symbol, start_row=3)
-
-    # Update layout to ensure charts are well-aligned
-    fig.update_layout(height=1800, title_text=f"{symbol} Analysis - OHLC, Volume, Z-Scores", showlegend=False)
-
-    # Show the figure
-    fig.show()
+    # Plot the OHLCV chart with Z-scores for the pair and cross-pair
+    plot_ohlcv_with_z_scores(df, symbol)
 
     # Close the database connection
     conn.close()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Plot graphs for a given trading pair and time period from the database.")
+    import argparse
+    parser = argparse.ArgumentParser(description="Plot OHLCV and Z-scores for a given trading pair and cross-pairs.")
     parser.add_argument("symbol", type=str, help="The symbol of the trading pair (e.g., BTCUSDT)")
     parser.add_argument("num_units", type=int, help="The number of units (e.g., 7 for days or weeks)")
     parser.add_argument("grouping", type=str, choices=['d', 'w'], help="The grouping ('d' for daily, 'w' for weekly)")
