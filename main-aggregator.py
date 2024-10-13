@@ -45,10 +45,19 @@ def aggregate_candles(df, timeframe):
     """
     Aggregate 4-hour candles into daily or weekly candles based on the timeframe.
     """
+
     if timeframe == 'd':  # Daily aggregation
         df['date'] = df['open_time'].dt.date
 
-        agg_df = df.groupby(['date']).agg({
+        # Check if there are exactly 6 candles per day (for daily aggregation)
+        valid_days = df.groupby('date').filter(lambda x: len(x) == 6)
+        
+        if valid_days.empty:
+            logging.info("No valid days with 6 full 4-hour candles available. Skipping aggregation.")
+            return pd.DataFrame()  # Return empty DataFrame if no valid days found
+        
+        # Perform daily aggregation
+        agg_df = valid_days.groupby(['date']).agg({
             'open_time': 'first',  
             'close_time': 'last',  
             'open_price': 'first',  
@@ -63,7 +72,15 @@ def aggregate_candles(df, timeframe):
     elif timeframe == 'w':  # Weekly aggregation
         df['week'] = df['open_time'].dt.to_period('W').apply(lambda r: r.start_time)
 
-        agg_df = df.groupby(['week']).agg({
+        # Check if there are exactly 42 candles per week (for weekly aggregation)
+        valid_weeks = df.groupby('week').filter(lambda x: len(x) == 42)
+        
+        if valid_weeks.empty:
+            logging.info("No valid weeks with 42 full 4-hour candles available. Skipping aggregation.")
+            return pd.DataFrame()  # Return empty DataFrame if no valid weeks found
+        
+        # Perform weekly aggregation
+        agg_df = valid_weeks.groupby(['week']).agg({
             'open_time': 'first',
             'close_time': 'last',
             'open_price': 'first',
@@ -76,6 +93,7 @@ def aggregate_candles(df, timeframe):
         agg_df['close_time'] = pd.to_datetime(agg_df['close_time'], unit='ms') + timedelta(days=7)
 
     return agg_df
+
 
 def calculate_rate_change_after_aggregation(agg_df):
     """
@@ -190,6 +208,11 @@ def main(timeframe):
             
             # Aggregate candles based on timeframe
             aggregated_df = aggregate_candles(df, timeframe)
+
+            # Check if aggregated_df is empty after aggregation
+            if aggregated_df.empty:
+                logging.warning(f"Aggregated DataFrame is empty for {symbol} after aggregation. Skipping this symbol.")
+                continue  # Skip to the next symbol
 
             # Calculate rate change after aggregation
             aggregated_df = calculate_rate_change_after_aggregation(aggregated_df)
