@@ -31,14 +31,13 @@ class DatabaseHandler:
 
         # If no data, return max_backfill timestamp rounded to the timeframe in UTC
         if last_close_time is None:
-            # Determine the maximum backfill point (1 year ago from now in UTC)
             max_backfill = datetime.now(timezone.utc) - timedelta(days=365)
             logging.warning(f"No data found in {table}. Returning max backfill timestamp.")
             rounded_backfill = self._round_timestamp_to_timeframe(max_backfill, timeframe)
             return int(rounded_backfill.timestamp() * 1000)
 
-        # Convert the last close_time to a datetime object, add 1 ms, and return as milliseconds
-        last_close_time_datetime = pd.to_datetime(last_close_time, unit='ms')  # No need to localize to UTC
+        # Convert the last close_time to a datetime object and return the next timestamp (increment by 1 ms)
+        last_close_time_datetime = pd.to_datetime(last_close_time, unit='ms')
         next_timestamp = last_close_time_datetime + timedelta(milliseconds=1)
 
         return int(next_timestamp.timestamp() * 1000)
