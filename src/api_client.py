@@ -10,6 +10,13 @@ class BinanceAPI:
         self.kline_endpoint = '/api/v3/klines'
         self.exchange_info_endpoint = '/api/v3/exchangeInfo'
 
+    def interval_to_ms(self):
+        """Helper function to convert the interval to milliseconds."""
+        if self.interval == '4h':
+            return 4 * 60 * 60 * 1000
+        else:
+            raise ValueError("Unsupported interval")
+
     def get_usdt_pairs(self):
         """Fetches all actively traded USDT pairs from Binance."""
         try:
@@ -27,7 +34,7 @@ class BinanceAPI:
             logging.error(f"Error fetching USDT pairs from Binance: {e}")
             return []
 
-    def fetch_candlestick_data_by_time(self, symbol, start_time, end_time=None, limit=1000):
+    def fetch_OHLCV_data(self, symbol, start_time, end_time=None, limit=1000):
         """
         Fetches candlestick data for a given symbol within a specified time range.
         
@@ -59,18 +66,49 @@ class BinanceAPI:
             logging.error(f"Error fetching candlestick data for {symbol}: {e}")
             return None
 
-    def get_most_recent_candle_time(self):
+
+    def fetch_candle_data(self, symbol, start_time, end_time, limit=1000):
         """
-        Fetch the most recent completed candlestick time for a 4-hour interval.
+        Fetches candlestick data for a given symbol within a specified time range.
         
+        Args:
+            symbol (str): The trading pair symbol (e.g., 'BTCUSDT').
+            start_time (int): Start time in milliseconds.
+            end_time (int): End time in milliseconds (optional, default is 0 for no end time).
+            limit (int): The number of candles to fetch per batch (default is 1000).
+    
         Returns:
-            int: Most recent completed candlestick time in milliseconds.
+            list: A list of candlestick data from the Binance API.
         """
-        try:
-            response = requests.get(f"{self.BASE_URL}{self.kline_endpoint}", params={'symbol': 'BTCUSDT', 'interval': '4h', 'limit': 1})
-            response.raise_for_status()
-            most_recent_candle = response.json()[0]
-            return most_recent_candle[6]  # Close time in milliseconds
-        except requests.RequestException as e:
-            logging.error(f"Error fetching the most recent candlestick time: {e}")
-            return None
+        all_candles = []  # List to store all fetched candles
+
+        # Loop until the cursor exceeds end_time (if end_time is provided and > 0)
+        while start_time < end_time:
+            params = {
+                'symbol': symbol,
+                'interval': self.interval,
+                'startTime': start_time,
+                'limit': limit  # Fetch up to 'limit' candles per batch
+            }
+
+            try:
+                response = requests.get(f"{self.BASE_URL}{self.kline_endpoint}", params=params)
+                response.raise_for_status()
+                candles = response.json()
+            
+                if not candles:
+                    logging.info(f"No more candles to fetch for {symbol} from {start_time} to {end_time}.")
+                    break
+
+                all_candles.extend(candles)
+                logging.info(f"Fetched {len(candles)} candles for {symbol} from {start_time}.")
+
+                # Update the cursor to the last candle's close time plus 1 millisecond
+                start_time = int(candles[-1][6]) + 1
+
+            except requests.RequestException as e:
+                logging.error(f"Error fetching candlestick data for {symbol}: {e}")
+                break
+
+        return all_candles
+

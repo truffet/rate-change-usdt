@@ -4,9 +4,9 @@ from datetime import timedelta, datetime, timezone
 import logging
 
 class DatabaseHandler:
-    def get_timestamp_cursor(self, conn, timeframe):
+    def get_timestamp_cursor(self, conn, timeframe, symbol):
         """
-        Fetch the most recent close_time from the database and return the next timestamp
+        Fetch the most recent close_time from the database for a specific symbol and return the next timestamp
         (incremented by 1 ms) as the starting point for backfilling data.
         If no data is found, return a timestamp 1 year back from the current time in UTC.
         """
@@ -23,16 +23,16 @@ class DatabaseHandler:
         else:
             raise ValueError("Invalid timeframe specified.")
 
-        # Fetch the most recent close_time from the specified table
-        query = f"SELECT MAX(close_time) FROM {table}"
+        # Fetch the most recent close_time for the specified symbol
+        query = f"SELECT MAX(close_time) FROM {table} WHERE symbol = ?"
         cursor = conn.cursor()
-        cursor.execute(query)
+        cursor.execute(query, (symbol,))
         last_close_time = cursor.fetchone()[0]
 
         # If no data, return max_backfill timestamp rounded to the timeframe in UTC
         if last_close_time is None:
             max_backfill = datetime.now(timezone.utc) - timedelta(days=365)
-            logging.warning(f"No data found in {table}. Returning max backfill timestamp.")
+            logging.warning(f"No data found in {table} for {symbol}. Returning max backfill timestamp.")
             rounded_backfill = self._round_timestamp_to_timeframe(max_backfill, timeframe)
             return int(rounded_backfill.timestamp() * 1000)
 

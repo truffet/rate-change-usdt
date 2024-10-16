@@ -1,6 +1,8 @@
 import argparse
 import logging
 import sqlite3
+from datetime import datetime, timezone
+
 from src.config_loader import ConfigLoader
 from src.api_client import BinanceAPI
 from src.data_processor import DataProcessor
@@ -37,15 +39,38 @@ def main():
     # Connect to the SQLite database
     conn = sqlite3.connect('trading_data.db')
 
-    # Get the timestamp starting point for backfilling data from the last timestamp saved in db for a timeframe
-    try:
-        timestamp_cursor = database_handler.get_timestamp_cursor(conn, args.timeframe)
-        logging.info(f"Timestamp cursor {args.timeframe}: {timestamp_cursor}")
-    except ValueError as e:
-        logging.error(f"Error fetching timestamp cursor: {e}")
-        return
+    # Get all USDT pairs
+    usdt_pairs = api_client.get_usdt_pairs()
+    logging.info(f"Successfully fetched {len(usdt_pairs)} USDT pairs.")
 
-    # Proceed with further processing logic (fetching or aggregating data, etc.)
+    # Process each pair
+    for symbol in usdt_pairs:
+        logging.info(f"Processing {symbol}...")
+
+        # Get the timestamp starting point for backfilling data from the last timestamp saved in db for a timeframe
+        try:
+            timestamp_cursor = database_handler.get_timestamp_cursor(conn, args.timeframe, symbol)
+            logging.info(f"For {symbol}: timestamp cursor: {args.timeframe}: {timestamp_cursor}")
+        except ValueError as e:
+            logging.error(f"Error fetching timestamp cursor: {e}")
+            return
+
+        if args.timeframe == '4h':
+            # Get current time in UTC as end_time
+            end_time = int(datetime.now(timezone.utc).timestamp() * 1000)
+            # Fetch and backfill 4-hour candles from Binance API
+            candle_data = api_client.fetch_candle_data(symbol, timestamp_cursor, end_time)
+            if candle_data:
+                logging.info(f"Fetched {len(candle_data)} 4-hour candles for {symbol} starting from timestamp {timestamp_cursor}.")
+            else:
+                logging.info(f"No new 4-hour candles available for {symbol}.")
+    
+        else:
+            # Backfill aggregate by fetching 4-hour data or 1-day from the database (for daily or weekly)
+            logging.info(f"Not implemented yet")
+            return
+
+
 
     # Close the database connection
     conn.close()
