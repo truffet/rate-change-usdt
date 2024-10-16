@@ -12,8 +12,8 @@ def create_table(cursor, table_name):
     CREATE TABLE IF NOT EXISTS {table_name} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         symbol VARCHAR(10) NOT NULL,      -- Trading pair symbol
-        open_time TEXT NOT NULL,          -- Start time of the candlestick
-        close_time TEXT NOT NULL,         -- End time of the candlestick
+        open_time INTEGER NOT NULL,          -- Start time of the candlestick
+        close_time INTEGER NOT NULL,         -- End time of the candlestick
         open_price DECIMAL(18, 8) NOT NULL,  -- Opening price
         high_price DECIMAL(18, 8) NOT NULL,  -- Highest price
         low_price DECIMAL(18, 8) NOT NULL,   -- Lowest price
@@ -31,7 +31,8 @@ def create_table(cursor, table_name):
         z_volume_pair DECIMAL(18, 8),            -- Z-score of volume for the specific trading pair
 
         -- Cross-pair Z-scores (Z-scores based on comparison with other pairs)
-        z_rate_change_all_pairs DECIMAL(18, 8),   -- Z-score of rate change across all pairs
+        z_rate_change_open_close_all_pairs DECIMAL(18, 8), -- Z-score of rate change open/close across all pairs
+        z_rate_change_high_low_all_pairs DECIMAL(18, 8),   -- Z-score of rate change high/low across all pairs
         z_volume_all_pairs DECIMAL(18, 8),        -- Z-score of volume across all pairs
 
         UNIQUE(symbol, open_time)  -- Ensure unique data per trading pair and time

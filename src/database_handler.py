@@ -58,3 +58,207 @@ class DatabaseHandler:
         else:
             raise ValueError("Invalid timeframe specified for rounding.")
         return rounded_time
+
+    def save_symbol_data_to_db(self, df, conn, timeframe, symbol):
+        """
+        Save the processed candlestick data from a pandas DataFrame to the database.
+        
+        Args:
+            df (pd.DataFrame): The DataFrame containing the candlestick data to save.
+            conn (sqlite3.Connection): The SQLite connection object.
+            timeframe (str): The timeframe ('4h', 'd', or 'w') to determine the table name.
+        """
+        # Determine the appropriate table based on the timeframe
+        table_name = f'usdt_{timeframe}'
+
+        cursor = conn.cursor()
+
+        for _, row in df.iterrows():
+            # Prepare the data to be inserted or updated
+            data_to_insert = (
+                symbol,                                 # Trading pair symbol
+                row['open_time'],                       # Open time (start of the candlestick)
+                row['close_time'],                      # Close time (end of the candlestick)
+                row['open_price'],                      # Opening price
+                row['high_price'],                      # Highest price during the candlestick
+                row['low_price'],                       # Lowest price during the candlestick
+                row['close_price'],                     # Closing price
+                row['volume'],                          # Volume traded (base asset)
+                row['quote_volume'],                    # Volume traded (quote asset)
+
+                # Rate change calculations
+                row['rate_change_open_close'],          # Rate change based on open/close prices
+                row['rate_change_high_low'],            # Rate change based on high/low prices
+
+                # Z-scores specific to this trading pair (calculated later)
+                row.get('z_rate_change_open_close', None),
+                row.get('z_rate_change_high_low', None),
+                row.get('z_volume_pair', None),
+
+                # Cross-pair Z-scores (calculated after z-scores for individual pairs)
+                row.get('z_rate_change_open_close_all_pairs', None),
+                row.get('z_rate_change_high_low_all_pairs', None),
+                row.get('z_volume_all_pairs', None)
+            )
+
+            # SQL query to insert or replace existing data into the appropriate table
+            query = f'''
+            INSERT OR REPLACE INTO {table_name} (
+                symbol, open_time, close_time, open_price, high_price, low_price, close_price, volume, quote_volume, 
+                rate_change_open_close, rate_change_high_low, 
+                z_rate_change_open_close, z_rate_change_high_low, z_volume_pair, 
+                z_rate_change_open_close_all_pairs, z_rate_change_high_low_all_pairs, z_volume_all_pairs
+            ) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            '''
+
+            try:
+                # Execute the query
+                cursor.execute(query, data_to_insert)
+            except Exception as e:
+                logging.error(f"Error saving candle data for {row['symbol']} at {row['open_time']}: {e}")
+
+        # Commit changes to the database
+        conn.commit()
+        logging.info(f"{symbol} data saved to the {table_name} table successfully.")
+
+    def get_symbol_data_from_db(self, conn, timeframe, symbol):
+        """
+        Fetch all data for a specific symbol and timeframe from the database 
+        and return it as a pandas DataFrame.
+        
+        Args:
+            conn (sqlite3.Connection): The SQLite connection object.
+            timeframe (str): The timeframe ('4h', 'd', or 'w') to determine the table name.
+            symbol (str): The trading pair symbol (e.g., 'BTCUSDT').
+
+        Returns:
+            pd.DataFrame: The DataFrame containing the data for the specified symbol and timeframe.
+        """
+        # Determine the appropriate table based on the timeframe
+        table_name = f'usdt_{timeframe}'
+
+        # SQL query to fetch all data for the given symbol
+        query = f'''
+        SELECT 
+            open_time, close_time, open_price, high_price, low_price, close_price, volume, quote_volume,
+            rate_change_open_close, rate_change_high_low,
+            z_rate_change_open_close, z_rate_change_high_low, z_volume_pair, 
+            z_rate_change_open_close_all_pairs, z_rate_change_high_low_all_pairs, z_volume_all_pairs
+        FROM {table_name}
+        WHERE symbol = ?
+        '''
+
+        try:
+            # Execute the query and fetch the data into a pandas DataFrame
+            df = pd.read_sql_query(query, conn, params=(symbol,))
+
+            # Convert 'open_time' and 'close_time' to datetime if needed
+            df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
+            df['close_time'] = pd.to_datetime(df['close_time'], unit='ms')
+
+            logging.info(f"Fetched data for {symbol} from {table_name} table successfully.")
+            return df
+
+        except Exception as e:
+            logging.error(f"Error fetching data for {symbol} from {table_name}: {e}")
+            return pd.DataFrame()  # Return an empty DataFrame in case of an error
+
+
+    def save_zscores_to_db(self, df, conn, timeframe, symbol, zscore_type='pair'):
+        """
+        Save Z-scores (pair-specific or cross-pair) to the database.
+        
+        Args:
+            df (pd.DataFrame): The DataFrame containing the Z-scores to save.
+            conn (sqlite3.Connection): The SQLite connection object.
+            timeframe (str): The timeframe ('4h', 'd', or 'w') to determine the table name.
+            symbol (str): The trading pair symbol.
+            zscore_type (str): Specifies the type of Z-scores to save ('pair' or 'cross').
+        """
+        # Determine the appropriate table based on the timeframe
+        table_name = f'usdt_{timeframe}'
+        
+        # Define the Z-score columns based on zscore_type
+        if zscore_type == 'pair':
+            zscore_columns = ['z_rate_change_open_close', 'z_rate_change_high_low', 'z_volume_pair']
+        elif zscore_type == 'cross':
+            zscore_columns = ['z_rate_change_open_close_all_pairs', 'z_rate_change_high_low_all_pairs', 'z_volume_all_pairs']
+        else:
+            raise ValueError("Invalid zscore_type. Must be 'pair' or 'cross'.")
+        
+        cursor = conn.cursor()
+        
+        for _, row in df.iterrows():
+            # Prepare the Z-scores data to be inserted or updated
+            open_time = row['open_time']
+            if not isinstance(open_time, int):
+                open_time = int(open_time.timestamp() * 1000)
+    
+            # Print the type and content of open_time
+            #print(f"open_time (type: {type(open_time)}): {open_time}")
+
+            zscores_data = (
+                row.get(zscore_columns[0], None),  # Z-score for rate change open/close
+                row.get(zscore_columns[1], None),  # Z-score for rate change high/low
+                row.get(zscore_columns[2], None),  # Z-score for volume
+                symbol,  # Symbol
+                open_time
+            )
+
+            # SQL query to update the Z-scores for the relevant symbol and open_time
+            query = f'''
+            UPDATE {table_name} 
+            SET {zscore_columns[0]} = ?, {zscore_columns[1]} = ?, {zscore_columns[2]} = ?
+            WHERE symbol = ? AND open_time = ?
+            '''
+            
+            try:
+                # Execute the query
+                cursor.execute(query, zscores_data)
+            except Exception as e:
+                logging.error(f"Error saving Z-scores for {symbol} at {row['open_time']}: {e}")
+        
+        # Commit changes to the database
+        conn.commit()
+        logging.info(f"Z-scores ({zscore_type}) saved to the {table_name} table for {symbol}.")
+
+
+    def get_all_data_from_db(self, conn, timeframe):
+        """
+        Fetch all candlestick data for the given timeframe from the database.
+
+        Args:
+            conn (sqlite3.Connection): The SQLite connection object.
+            timeframe (str): The timeframe ('4h', 'd', or 'w') to determine the table name.
+
+        Returns:
+            pd.DataFrame: A pandas DataFrame containing all candlestick data.
+        """
+        # Determine the appropriate table based on the timeframe
+        table_name = f'usdt_{timeframe}'
+
+        # SQL query to select all relevant columns
+        query = f'''
+        SELECT 
+            symbol, 
+            open_time, 
+            close_time, 
+            open_price, 
+            high_price, 
+            low_price, 
+            close_price, 
+            volume, 
+            quote_volume
+        FROM {table_name}
+        '''
+
+        # Fetch the data and load it into a pandas DataFrame
+        try:
+            df = pd.read_sql_query(query, conn)
+            logging.info(f"Fetched all data from {table_name} for Z-score calculation.")
+        except Exception as e:
+            logging.error(f"Error fetching data from {table_name}: {e}")
+            return pd.DataFrame()  # Return an empty DataFrame if there's an issue
+
+        return df

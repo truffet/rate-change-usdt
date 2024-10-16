@@ -2,6 +2,7 @@ import argparse
 import logging
 import sqlite3
 from datetime import datetime, timezone
+import pandas as pd
 
 from src.config_loader import ConfigLoader
 from src.api_client import BinanceAPI
@@ -41,7 +42,6 @@ def main():
 
     # Get all USDT pairs
     usdt_pairs = api_client.get_usdt_pairs()
-    logging.info(f"Successfully fetched {len(usdt_pairs)} USDT pairs.")
 
     # Process each pair
     for symbol in usdt_pairs:
@@ -67,10 +67,25 @@ def main():
     
         else:
             # Backfill aggregate by fetching 4-hour data or 1-day from the database (for daily or weekly)
-            logging.info(f"Not implemented yet")
+            logging.info(f"Not implemented yet - wait for next iteration..")        #######################
             return
+        if candle_data:
+            # Convert to pandas DF
+            df = data_processor.convert_candle_data_to_dataframe(candle_data)
+            # Calculate rate changes
+            df = data_processor.calculate_rate_changes(df)
+            # Save data to db table
+            database_handler.save_symbol_data_to_db(df, conn, args.timeframe, symbol)
 
+        # Calculate z-scores for pair and store to db table
+        df = database_handler.get_symbol_data_from_db(conn, args.timeframe, symbol)
+        df = data_processor.calculate_zscores(df)
+        database_handler.save_zscores_to_db(df, conn, args.timeframe, symbol)
 
+    # Calculate z-scores for all pairs and store to db table
+    df = database_handler.get_all_data_from_db(conn, args.timeframe)
+    df = data_processor.calculate_zscores(df)
+    database_handler.save_zscores_to_db(df, conn, args.timeframe, symbol, 'cross')
 
     # Close the database connection
     conn.close()
