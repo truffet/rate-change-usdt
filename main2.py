@@ -75,13 +75,13 @@ def main():
             df = data_processor.calculate_rate_changes(df)
             database_handler.save_symbol_data_to_db(df, conn, args.timeframe, symbol)
 
-        # Calculate z-scores for pair and store to db table
-        df = data_processor.calculate_zscores(conn, 'pair', symbol, args.timeframe)
-        database_handler.save_zscores_to_db(df, conn, args.timeframe, symbol, 'pair')
+            # Calculate Z-scores for a specific pair and store to db table
+            df_pair = data_processor.calculate_zscores_for_pair(conn, symbol, args.timeframe)
+            database_handler.save_pair_zscores_to_db(conn, df_pair, args.timeframe)
 
-    # Calculate z-scores for all pairs and store to db table
-    #df = data_processor.calculate_zscores(conn, 'cross', None, args.timeframe)
-    #database_handler.save_zscores_to_db(df, conn, args.timeframe, symbol=None, zscore_type='cross')
+    # Calculate Z-scores for all pairs (cross) and store to db table
+    df_all_pairs = data_processor.calculate_zscores_for_all_pairs(conn, args.timeframe)
+    database_handler.save_cross_zscores_to_db(conn, df_all_pairs, args.timeframe)
 
     # Close the database connection
     conn.close()

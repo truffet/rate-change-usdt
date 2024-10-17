@@ -61,66 +61,72 @@ class DatabaseHandler:
 
     def save_symbol_data_to_db(self, df, conn, timeframe, symbol):
         """
-        Save the processed candlestick data from a pandas DataFrame to the database.
-        
+        Save candlestick data and Z-scores to the SQLite database using a dictionary approach.
+
         Args:
-            df (pd.DataFrame): The DataFrame containing the candlestick data to save.
+            df (pd.DataFrame): The DataFrame containing the candlestick data.
             conn (sqlite3.Connection): The SQLite connection object.
-            timeframe (str): The timeframe ('4h', 'd', or 'w') to determine the table name.
+            timeframe (str): The timeframe ('4h', 'd', 'w') to determine the table name.
+            symbol (str): The trading pair symbol.
         """
         # Determine the appropriate table based on the timeframe
         table_name = f'usdt_{timeframe}'
 
         cursor = conn.cursor()
 
-        for _, row in df.iterrows():
+        # Convert the DataFrame to a list of dictionaries (records)
+        records = df.to_dict(orient='records')
+
+        # Iterate over the records and insert or update the database
+        for record in records:
+            open_time_ms = int(record['open_time'].timestamp() * 1000)
+
             # Prepare the data to be inserted or updated
             data_to_insert = (
-                symbol,                                 # Trading pair symbol
-                row['open_time'],                       # Open time (start of the candlestick)
-                row['close_time'],                      # Close time (end of the candlestick)
-                row['open_price'],                      # Opening price
-                row['high_price'],                      # Highest price during the candlestick
-                row['low_price'],                       # Lowest price during the candlestick
-                row['close_price'],                     # Closing price
-                row['volume'],                          # Volume traded (base asset)
-                row['quote_volume'],                    # Volume traded (quote asset)
-
-                # Rate change calculations
-                row['rate_change_open_close'],          # Rate change based on open/close prices
-                row['rate_change_high_low'],            # Rate change based on high/low prices
-
-                # Z-scores specific to this trading pair (calculated later)
-                row.get('z_rate_change_open_close', None),
-                row.get('z_rate_change_high_low', None),
-                row.get('z_volume_pair', None),
-
-                # Cross-pair Z-scores (calculated after z-scores for individual pairs)
-                row.get('z_rate_change_open_close_all_pairs', None),
-                row.get('z_rate_change_high_low_all_pairs', None),
-                row.get('z_volume_all_pairs', None)
+                symbol,  # Trading pair symbol
+                open_time_ms,  # Open time
+                record['close_time'],  # Close time
+                record['open_price'],  # Open price
+                record['high_price'],  # High price
+                record['low_price'],   # Low price
+                record['close_price'],  # Close price
+                record['volume'],  # Volume
+                record['quote_volume'],  # Quote volume
+                record['rate_change_open_close'],  # Rate change open/close
+                record['rate_change_high_low'],  # Rate change high/low
+                record.get('z_rate_change_open_close', 0),  # Z-score open/close
+                record.get('z_rate_change_high_low', 0),  # Z-score high/low
+                record.get('z_volume_pair', 0)  # Z-score volume
             )
 
-            # SQL query to insert or replace existing data into the appropriate table
-            query = f'''
-            INSERT OR REPLACE INTO {table_name} (
-                symbol, open_time, close_time, open_price, high_price, low_price, close_price, volume, quote_volume, 
-                rate_change_open_close, rate_change_high_low, 
-                z_rate_change_open_close, z_rate_change_high_low, z_volume_pair, 
-                z_rate_change_open_close_all_pairs, z_rate_change_high_low_all_pairs, z_volume_all_pairs
-            ) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            '''
+            # Insert or update the database based on existence
+            cursor.execute('SELECT COUNT(*) FROM usdt_4h WHERE symbol = ? AND open_time = ?', (symbol, open_time_ms))
+            exists = cursor.fetchone()[0]
 
-            try:
-                # Execute the query
+            if exists:
+                # Update if the record exists
+                query = (
+                    f"UPDATE {table_name} SET z_rate_change_open_close = ?, z_rate_change_high_low = ?, z_volume_pair = ? "
+                    f"WHERE symbol = ? AND open_time = ?"
+                )
+                cursor.execute(query, (
+                    record.get('z_rate_change_open_close', 0),
+                    record.get('z_rate_change_high_low', 0),
+                    record.get('z_volume_pair', 0),
+                    symbol, open_time_ms
+                ))
+            else:
+                # Insert if the record does not exist
+                query = (
+                    f"INSERT INTO {table_name} (symbol, open_time, close_time, open_price, high_price, low_price, close_price, volume, quote_volume, "
+                    f"rate_change_open_close, rate_change_high_low, z_rate_change_open_close, z_rate_change_high_low, z_volume_pair) "
+                    f"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                )
                 cursor.execute(query, data_to_insert)
-            except Exception as e:
-                logging.error(f"Error saving candle data for {row['symbol']} at {row['open_time']}: {e}")
 
-        # Commit changes to the database
+        # Commit the transaction
         conn.commit()
-        logging.info(f"{symbol} OHLCV and rate change data saved to the {table_name} table successfully.")
+        logging.info(f"{symbol} OHLCV and Z-scores data saved to the {table_name} table.")
 
     def get_symbol_data_from_db(self, conn, timeframe, symbol):
         """
@@ -164,70 +170,6 @@ class DatabaseHandler:
             logging.error(f"Error fetching data for {symbol} from {table_name}: {e}")
             return pd.DataFrame()  # Return an empty DataFrame in case of an error
 
-    def save_zscores_to_db(self, df, conn, timeframe, symbol=None, zscore_type='pair'):
-        """
-        Save Z-scores (pair-specific or cross-pair) to the database.
-        
-        Args:
-            df (pd.DataFrame): The DataFrame containing the Z-scores to save.
-            conn (sqlite3.Connection): The SQLite connection object.
-            timeframe (str): The timeframe ('4h', 'd', or 'w') to determine the table name.
-            symbol (str or None): The trading pair symbol, only used for 'pair' Z-scores.
-            zscore_type (str): Specifies the type of Z-scores to save ('pair' or 'cross').
-        """
-        # Determine the appropriate table based on the timeframe
-        table_name = f'usdt_{timeframe}'
-        
-        # Define the Z-score columns based on zscore_type
-        if zscore_type == 'pair':
-            zscore_columns = ['z_rate_change_open_close', 'z_rate_change_high_low', 'z_volume_pair']
-        elif zscore_type == 'cross':
-            zscore_columns = ['z_rate_change_open_close_all_pairs', 'z_rate_change_high_low_all_pairs', 'z_volume_all_pairs']
-        else:
-            raise ValueError("Invalid zscore_type. Must be 'pair' or 'cross'.")
-        
-        cursor = conn.cursor()
-
-        for _, row in df.iterrows():
-            # Prepare the Z-scores data to be inserted or updated
-            open_time = row['open_time']
-            if not isinstance(open_time, int):
-                open_time = int(open_time.timestamp() * 1000)
-
-            zscores_data = (
-                row.get(zscore_columns[0], None),  # Z-score for rate change open/close
-                row.get(zscore_columns[1], None),  # Z-score for rate change high/low
-                row.get(zscore_columns[2], None),  # Z-score for volume
-                open_time
-            )
-
-            if zscore_type == 'pair':
-                # If saving pair-specific Z-scores, include the symbol in the query
-                zscores_data += (row['symbol'],)  # Append the symbol to zscores_data
-
-                query = f'''
-                UPDATE {table_name} 
-                SET {zscore_columns[0]} = ?, {zscore_columns[1]} = ?, {zscore_columns[2]} = ?
-                WHERE symbol = ? AND open_time = ?
-                '''
-            elif zscore_type == 'cross':
-                # For cross-pair Z-scores, update all symbols at the given open_time
-                query = f'''
-                UPDATE {table_name} 
-                SET {zscore_columns[0]} = ?, {zscore_columns[1]} = ?, {zscore_columns[2]} = ?
-                WHERE open_time = ?
-                '''
-
-            try:
-                # Execute the query
-                cursor.execute(query, zscores_data)
-            except Exception as e:
-                logging.error(f"Error saving Z-scores for {row['symbol']} at {row['open_time']}: {e}")
-        
-        # Commit changes to the database
-        conn.commit()
-        logging.info(f"Z-scores ({zscore_type}) saved to the {table_name} table.")
-
     def get_all_data_from_db(self, conn, timeframe):
         """
         Fetch all candlestick data for the given timeframe from the database.
@@ -268,3 +210,128 @@ class DatabaseHandler:
             return pd.DataFrame()  # Return an empty DataFrame if there's an issue
 
         return df
+
+    def save_pair_zscores_to_db(self, conn, df, timeframe):
+        """
+        Save pair-specific Z-scores to the SQLite database using a dictionary approach for faster execution.
+
+        Args:
+            conn (sqlite3.Connection): The SQLite connection object.
+            df (pd.DataFrame): The DataFrame containing the Z-scores.
+            timeframe (str): Specifies the timeframe ('4h', 'd', 'w') to determine the table name.
+        """
+        # Determine the appropriate table based on the timeframe
+        table_name = f'usdt_{timeframe}'
+
+        cursor = conn.cursor()
+
+        # Convert the DataFrame to a list of dictionaries (records)
+        records = df.to_dict(orient='records')
+
+        # Iterate over the records and update the database
+        for record in records:
+            open_time_ms = int(record['open_time'].timestamp() * 1000)
+
+            # Prepare the data to be inserted or updated
+            data_to_insert = (
+                record['symbol'],  # Trading pair symbol
+                open_time_ms,      # Open time in milliseconds
+                record['close_time'],  # Close time
+                record['open_price'],  # Open price
+                record['high_price'],  # High price
+                record['low_price'],   # Low price
+                record['close_price'],  # Close price
+                record['volume'],  # Volume
+                record['quote_volume'],  # Quote volume
+                record['rate_change_open_close'],  # Rate change open/close
+                record['rate_change_high_low'],  # Rate change high/low
+                record.get('z_rate_change_open_close', 0),  # Z-score for open/close
+                record.get('z_rate_change_high_low', 0),  # Z-score for high/low
+                record.get('z_volume_pair', 0)  # Z-score for volume
+            )
+
+            # Check if the record exists in the table
+            cursor.execute('SELECT COUNT(*) FROM usdt_4h WHERE symbol = ? AND open_time = ?', (record['symbol'], open_time_ms))
+            exists = cursor.fetchone()[0]
+
+            if exists:
+                # Update if the record exists
+                query = (
+                    f"UPDATE {table_name} SET z_rate_change_open_close = ?, z_rate_change_high_low = ?, z_volume_pair = ? "
+                    f"WHERE symbol = ? AND open_time = ?"
+                )
+                cursor.execute(query, (
+                    record.get('z_rate_change_open_close', 0),
+                    record.get('z_rate_change_high_low', 0),
+                    record.get('z_volume_pair', 0),
+                    record['symbol'], open_time_ms
+                ))
+            else:
+                # Insert if the record does not exist
+                query = (
+                    f"INSERT INTO {table_name} (symbol, open_time, close_time, open_price, high_price, low_price, close_price, volume, quote_volume, "
+                    f"rate_change_open_close, rate_change_high_low, z_rate_change_open_close, z_rate_change_high_low, z_volume_pair) "
+                    f"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                )
+                cursor.execute(query, data_to_insert)
+
+        # Commit the transaction
+        conn.commit()
+        logging.info(f"Pair-specific Z-scores saved to the {table_name} table.")
+
+    def save_cross_zscores_to_db(self, conn, df, timeframe):
+        """
+        Save cross-pair Z-scores to the SQLite database using a dictionary approach for faster execution.
+
+        Args:
+            conn (sqlite3.Connection): The SQLite connection object.
+            df (pd.DataFrame): The DataFrame containing the Z-scores.
+            timeframe (str): Specifies the timeframe ('4h', 'd', 'w') to determine the table name.
+        """
+        # Determine the appropriate table based on the timeframe
+        table_name = f'usdt_{timeframe}'
+
+        cursor = conn.cursor()
+
+        # Convert the DataFrame to a list of dictionaries (records)
+        records = df.to_dict(orient='records')
+
+        # Iterate over the records and insert or update the database
+        for record in records:
+            open_time_ms = int(record['open_time'].timestamp() * 1000)
+
+            # Prepare the data to be inserted or updated
+            data_to_insert = (
+                open_time_ms,  # Open time
+                record.get('z_rate_change_open_close_all_pairs', 0),  # Z-score open/close (all pairs)
+                record.get('z_rate_change_high_low_all_pairs', 0),  # Z-score high/low (all pairs)
+                record.get('z_volume_all_pairs', 0)  # Z-score volume (all pairs)
+            )
+
+            # Update or insert based on whether the row already exists
+            cursor.execute('SELECT COUNT(*) FROM usdt_4h WHERE open_time = ?', (open_time_ms,))
+            exists = cursor.fetchone()[0]
+
+            if exists:
+                # Update if the record exists
+                query = (
+                    f"UPDATE {table_name} SET z_rate_change_open_close_all_pairs = ?, z_rate_change_high_low_all_pairs = ?, z_volume_all_pairs = ? "
+                    f"WHERE open_time = ?"
+                )
+                cursor.execute(query, (
+                    record.get('z_rate_change_open_close_all_pairs', 0),
+                    record.get('z_rate_change_high_low_all_pairs', 0),
+                    record.get('z_volume_all_pairs', 0),
+                    open_time_ms
+                ))
+            else:
+                # Insert if the record does not exist
+                query = (
+                    f"INSERT INTO {table_name} (open_time, z_rate_change_open_close_all_pairs, z_rate_change_high_low_all_pairs, z_volume_all_pairs) "
+                    f"VALUES (?, ?, ?, ?)"
+                )
+                cursor.execute(query, data_to_insert)
+
+        # Commit the transaction
+        conn.commit()
+        logging.info(f"Cross-pair Z-scores saved to the {table_name} table.")

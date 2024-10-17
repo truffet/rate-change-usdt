@@ -41,49 +41,60 @@ class DataProcessor:
     
         return df
 
-    def calculate_zscores(self, conn, zscore_type='pair', symbol=None, timeframe='4h'):
+    def calculate_zscores_for_pair(self, conn, symbol, timeframe='4h'):
         """
-        Calculate Z-scores for either a specific symbol (pair) or across all symbols (cross).
+        Calculate Z-scores for a specific trading pair (pair-specific Z-scores).
         
         Args:
             conn (sqlite3.Connection): The SQLite connection object.
-            zscore_type (str): Specifies whether to calculate 'pair' or 'cross' Z-scores.
-            symbol (str, optional): The trading pair symbol. If None, calculates for all pairs.
+            symbol (str): The trading pair symbol.
             timeframe (str): Specifies the timeframe ('4h', 'd', 'w') to determine the table name.
-        
+            
         Returns:
-            pd.DataFrame: The DataFrame with the new Z-score columns.
+            pd.DataFrame: The DataFrame with the new Z-score columns for the specific pair.
         """
         # Determine the appropriate table based on the timeframe
         table_name = f'usdt_{timeframe}'
-
-        # Define query based on whether we are calculating for one symbol (pair) or all (cross)
-        if symbol:
-            query = f'''SELECT * FROM {table_name} WHERE symbol = ?'''
-            df = pd.read_sql_query(query, conn, params=(symbol,))
-        else:
-            query = f'''SELECT * FROM {table_name}'''
-            df = pd.read_sql_query(query, conn)
-
-        # Convert the open_time column from milliseconds to a datetime format
+        
+        # Query the specific pair data
+        query = f'''SELECT * FROM {table_name} WHERE symbol = ?'''
+        df = pd.read_sql_query(query, conn, params=(symbol,))
+        
+        # Convert the open_time column from milliseconds to datetime
         df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
+        
+        # Calculate pair-specific Z-scores
+        df['z_rate_change_open_close'] = zscore(df['rate_change_open_close'])
+        df['z_rate_change_high_low'] = zscore(df['rate_change_high_low'])
+        df['z_volume_pair'] = zscore(df['quote_volume'])
+        
+        return df
 
-        # Define the Z-score column names based on the zscore_type
-        if zscore_type == 'pair':
-            z_rate_change_open_close_col = 'z_rate_change_open_close'
-            z_rate_change_high_low_col = 'z_rate_change_high_low'
-            z_volume_col = 'z_volume_pair'
-        elif zscore_type == 'cross':
-            z_rate_change_open_close_col = 'z_rate_change_open_close_all_pairs'
-            z_rate_change_high_low_col = 'z_rate_change_high_low_all_pairs'
-            z_volume_col = 'z_volume_all_pairs'
-        else:
-            raise ValueError("Invalid zscore_type. Must be 'pair' or 'cross'.")
-
-        # Calculate Z-scores for pair-specific or cross-pair data
-        df[z_rate_change_open_close_col] = zscore(df['rate_change_open_close'])
-        df[z_rate_change_high_low_col] = zscore(df['rate_change_high_low'])
-        df[z_volume_col] = zscore(df['quote_volume'])
-
+    def calculate_zscores_for_all_pairs(self, conn, timeframe='4h'):
+        """
+        Calculate Z-scores across all trading pairs for the last completed 4-hour candle (cross-pair Z-scores).
+        
+        Args:
+            conn (sqlite3.Connection): The SQLite connection object.
+            timeframe (str): Specifies the timeframe ('4h', 'd', 'w') to determine the table name.
+            
+        Returns:
+            pd.DataFrame: The DataFrame with the new Z-score columns for all pairs.
+        """
+        # Determine the appropriate table based on the timeframe
+        table_name = f'usdt_{timeframe}'
+        
+        # Query all pairs data
+        query = f'''SELECT * FROM {table_name}'''
+        df = pd.read_sql_query(query, conn)
+        
+        # Convert the open_time column from milliseconds to datetime
+        df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
+        
+        # Calculate cross-pair Z-scores across the entire dataset
+        df['z_rate_change_open_close_all_pairs'] = zscore(df['rate_change_open_close'])
+        df['z_rate_change_high_low_all_pairs'] = zscore(df['rate_change_high_low'])
+        df['z_volume_all_pairs'] = zscore(df['quote_volume'])
+        
         return df
 
