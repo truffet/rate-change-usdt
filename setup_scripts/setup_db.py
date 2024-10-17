@@ -40,6 +40,16 @@ def create_table(cursor, table_name):
     ''')
     print(f"Table {table_name} created successfully!")
 
+def create_index(cursor, table_name):
+    """
+    Create an index on symbol and open_time for faster lookups.
+    """
+    cursor.execute(f'''
+    CREATE INDEX IF NOT EXISTS idx_{table_name}_symbol_open_time
+    ON {table_name}(symbol, open_time);
+    ''')
+    print(f"Index on (symbol, open_time) created successfully for {table_name}!")
+
 def main():
     # Step 1: Check if the database file already exists
     if os.path.exists(DB_FILE):
@@ -50,10 +60,11 @@ def main():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
-    # Step 3: Create the necessary tables using the refactored function
+    # Step 3: Create the necessary tables and indexes
     table_names = ['usdt_4h', 'usdt_d', 'usdt_w']  # Define all the table names
     for table in table_names:
         create_table(cursor, table)
+        create_index(cursor, table)
 
     # Step 4: Commit the changes and close the connection
     conn.commit()

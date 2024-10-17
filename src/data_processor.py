@@ -68,6 +68,8 @@ class DataProcessor:
         df['z_rate_change_high_low'] = zscore(df['rate_change_high_low'])
         df['z_volume_pair'] = zscore(df['quote_volume'])
         
+        logging.info(f"{symbol} Z-scores data calculated.")
+
         return df
 
     def calculate_zscores_for_all_pairs(self, conn, timeframe='4h'):
@@ -95,6 +97,8 @@ class DataProcessor:
         df['z_rate_change_open_close_all_pairs'] = zscore(df['rate_change_open_close'])
         df['z_rate_change_high_low_all_pairs'] = zscore(df['rate_change_high_low'])
         df['z_volume_all_pairs'] = zscore(df['quote_volume'])
+
+        logging.info("Cross Z-scores data calculated.")
         
         return df
 

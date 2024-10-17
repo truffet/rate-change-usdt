@@ -73,15 +73,15 @@ def main():
             # Convert candles to pandas DF, calculate rate change and save data to db
             df = data_processor.convert_candle_data_to_dataframe(candle_data)
             df = data_processor.calculate_rate_changes(df)
-            database_handler.save_symbol_data_to_db(df, conn, args.timeframe, symbol)
+            database_handler.save_symbol_data_to_db(df.to_dict(orient='records'), conn, args.timeframe, symbol)
 
             # Calculate Z-scores for a specific pair and store to db table
             df_pair = data_processor.calculate_zscores_for_pair(conn, symbol, args.timeframe)
-            database_handler.save_pair_zscores_to_db(conn, df_pair, args.timeframe)
+            database_handler.save_pair_zscores_to_db(df_pair.to_dict(orient='records'), conn, args.timeframe)
 
     # Calculate Z-scores for all pairs (cross) and store to db table
     df_all_pairs = data_processor.calculate_zscores_for_all_pairs(conn, args.timeframe)
-    database_handler.save_cross_zscores_to_db(conn, df_all_pairs, args.timeframe)
+    database_handler.save_cross_zscores_to_db(df_all_pairs.to_dict(orient='records'), conn, args.timeframe)
 
     # Close the database connection
     conn.close()
