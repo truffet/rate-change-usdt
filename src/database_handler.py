@@ -120,7 +120,7 @@ class DatabaseHandler:
 
         # Commit changes to the database
         conn.commit()
-        logging.info(f"{symbol} data saved to the {table_name} table successfully.")
+        logging.info(f"{symbol} OHLCV and rate change data saved to the {table_name} table successfully.")
 
     def get_symbol_data_from_db(self, conn, timeframe, symbol):
         """
@@ -164,8 +164,7 @@ class DatabaseHandler:
             logging.error(f"Error fetching data for {symbol} from {table_name}: {e}")
             return pd.DataFrame()  # Return an empty DataFrame in case of an error
 
-
-    def save_zscores_to_db(self, df, conn, timeframe, symbol, zscore_type='pair'):
+    def save_zscores_to_db(self, df, conn, timeframe, symbol=None, zscore_type='pair'):
         """
         Save Z-scores (pair-specific or cross-pair) to the database.
         
@@ -173,7 +172,7 @@ class DatabaseHandler:
             df (pd.DataFrame): The DataFrame containing the Z-scores to save.
             conn (sqlite3.Connection): The SQLite connection object.
             timeframe (str): The timeframe ('4h', 'd', or 'w') to determine the table name.
-            symbol (str): The trading pair symbol.
+            symbol (str or None): The trading pair symbol, only used for 'pair' Z-scores.
             zscore_type (str): Specifies the type of Z-scores to save ('pair' or 'cross').
         """
         # Determine the appropriate table based on the timeframe
@@ -188,41 +187,46 @@ class DatabaseHandler:
             raise ValueError("Invalid zscore_type. Must be 'pair' or 'cross'.")
         
         cursor = conn.cursor()
-        
+
         for _, row in df.iterrows():
             # Prepare the Z-scores data to be inserted or updated
             open_time = row['open_time']
             if not isinstance(open_time, int):
                 open_time = int(open_time.timestamp() * 1000)
-    
-            # Print the type and content of open_time
-            #print(f"open_time (type: {type(open_time)}): {open_time}")
 
             zscores_data = (
                 row.get(zscore_columns[0], None),  # Z-score for rate change open/close
                 row.get(zscore_columns[1], None),  # Z-score for rate change high/low
                 row.get(zscore_columns[2], None),  # Z-score for volume
-                symbol,  # Symbol
                 open_time
             )
 
-            # SQL query to update the Z-scores for the relevant symbol and open_time
-            query = f'''
-            UPDATE {table_name} 
-            SET {zscore_columns[0]} = ?, {zscore_columns[1]} = ?, {zscore_columns[2]} = ?
-            WHERE symbol = ? AND open_time = ?
-            '''
-            
+            if zscore_type == 'pair':
+                # If saving pair-specific Z-scores, include the symbol in the query
+                zscores_data += (row['symbol'],)  # Append the symbol to zscores_data
+
+                query = f'''
+                UPDATE {table_name} 
+                SET {zscore_columns[0]} = ?, {zscore_columns[1]} = ?, {zscore_columns[2]} = ?
+                WHERE symbol = ? AND open_time = ?
+                '''
+            elif zscore_type == 'cross':
+                # For cross-pair Z-scores, update all symbols at the given open_time
+                query = f'''
+                UPDATE {table_name} 
+                SET {zscore_columns[0]} = ?, {zscore_columns[1]} = ?, {zscore_columns[2]} = ?
+                WHERE open_time = ?
+                '''
+
             try:
                 # Execute the query
                 cursor.execute(query, zscores_data)
             except Exception as e:
-                logging.error(f"Error saving Z-scores for {symbol} at {row['open_time']}: {e}")
+                logging.error(f"Error saving Z-scores for {row['symbol']} at {row['open_time']}: {e}")
         
         # Commit changes to the database
         conn.commit()
-        logging.info(f"Z-scores ({zscore_type}) saved to the {table_name} table for {symbol}.")
-
+        logging.info(f"Z-scores ({zscore_type}) saved to the {table_name} table.")
 
     def get_all_data_from_db(self, conn, timeframe):
         """
@@ -249,7 +253,9 @@ class DatabaseHandler:
             low_price, 
             close_price, 
             volume, 
-            quote_volume
+            quote_volume, 
+            rate_change_open_close, 
+            rate_change_high_low
         FROM {table_name}
         '''
 
