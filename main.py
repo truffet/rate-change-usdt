@@ -55,24 +55,32 @@ async def main():
         except ValueError as e:
             logging.error(f"Error fetching timestamp cursor: {e}")
             return
-
+        
+        # Get current time in UTC as end_time
+        end_time = int(datetime.now(timezone.utc).timestamp() * 1000)
+        
         if args.timeframe == '4h':
-            # Get current time in UTC as end_time
-            end_time = int(datetime.now(timezone.utc).timestamp() * 1000)
             # Fetch and backfill 4-hour candles from Binance API
             candle_data = api_client.fetch_candle_data(symbol, timestamp_cursor, end_time)
             if candle_data:
-                logging.info(f"Fetched {len(candle_data)} 4-hour candles for {symbol} starting from timestamp {timestamp_cursor}.")
+                logging.info(f"Fetched {len(candle_data)} x 4h candles for {symbol} starting from timestamp {timestamp_cursor}.")
             else:
                 logging.info(f"No new 4-hour candles available for {symbol}.")
     
         else:
             # Backfill aggregate by fetching 4-hour data or 1-day from the database (for daily or weekly)
-            logging.info(f"Not implemented yet - wait for next iteration..")        #######################
-            return
+            candle_data = data_processor.aggregate_candle_data(symbol, args.timeframe, timestamp_cursor, end_time)
+            if candle_data:
+                logging.info(f"Fetched {len(candle_data)} x 1{args.timeframe} candles for {symbol} starting from timestamp {timestamp_cursor}.")
+            else:
+                logging.info(f"No new 4-hour candles available for {symbol}.")
+
         if candle_data:
             # Convert candles to pandas DF, calculate rate change and save data to db
-            df = data_processor.convert_candle_data_to_dataframe(candle_data)
+            if args.timeframe == '4h':
+                df = data_processor.convert_candle_data_to_dataframe(candle_data)
+            else:
+                df = data_processor.convert_candle_data_to_dataframe(candle_data, 'dw')
             df = data_processor.calculate_rate_changes(df)
             database_handler.save_symbol_data_to_db(df.to_dict(orient='records'), conn, args.timeframe, symbol)
 
@@ -84,13 +92,10 @@ async def main():
     df_all_pairs = data_processor.calculate_zscores_for_all_pairs(conn, args.timeframe)
     database_handler.save_symbol_data_to_db(df_all_pairs.to_dict(orient='records'), conn, args.timeframe)
 
-    # Fetch latest data from DB table based on timeframe and print in telegram the message
-    # Convert timestamp_cursor from milliseconds to datetime
-    timestamp_cursor_dt = datetime.utcfromtimestamp(timestamp_cursor / 1000)
-    df_filtered = df_all_pairs[
-        (df_all_pairs['open_time'] > timestamp_cursor_dt) &  # Filter rows with timestamps after timestamp_cursor
-        (df_all_pairs['z_rate_change_open_close'] >= 2)   # Filter rows with Z-score >= 2 for rate change
-    ]
+    # Group by symbol and get the row with the maximum open_time for each symbol
+    latest_data = df_all_pairs.loc[df_all_pairs.groupby('symbol')['open_time'].idxmax()]
+    df_filtered = latest_data[((latest_data['z_rate_change_open_close'].abs() >= 2) | (latest_data['z_rate_change_high_low'].abs() >= 2)) & (latest_data['z_volume_all_pairs'].abs() >= 2)]
+
     await telegram_bot.send_candlestick_summary(df_filtered, args.timeframe)
 
     # Close the database connection

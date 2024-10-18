@@ -10,8 +10,11 @@ class DatabaseHandler:
         (incremented by 1 ms) as the starting point for backfilling data.
         If no data is found, return a timestamp 1 year back from the current time in UTC.
         """
+        logging.info(f"Fetching timestamp cursor for {symbol} on {timeframe} timeframe.")
+
         # Concatenate the timeframe to create the table name
         table = f'usdt_{timeframe}'
+        logging.info(f"Table being queried: {table}")
 
         # Determine the increment based on the timeframe
         if timeframe == '4h':
@@ -25,22 +28,29 @@ class DatabaseHandler:
 
         # Fetch the most recent close_time for the specified symbol
         query = f"SELECT MAX(close_time) FROM {table} WHERE symbol = ?"
+        logging.info(f"Query: {query}")
         cursor = conn.cursor()
         cursor.execute(query, (symbol,))
         last_close_time = cursor.fetchone()[0]
+        logging.info(f"Last close time for {symbol}: {last_close_time}")
 
         # If no data, return max_backfill timestamp rounded to the timeframe in UTC
         if last_close_time is None:
             max_backfill = datetime.now(timezone.utc) - timedelta(days=365)
             logging.warning(f"No data found in {table} for {symbol}. Returning max backfill timestamp.")
             rounded_backfill = self._round_timestamp_to_timeframe(max_backfill, timeframe)
+            logging.info(f"Rounded backfill timestamp for {symbol}: {rounded_backfill}")
             return int(rounded_backfill.timestamp() * 1000)
 
         # Convert the last close_time to a datetime object and return the next timestamp (increment by 1 ms)
         last_close_time_datetime = pd.to_datetime(last_close_time, unit='ms')
+        logging.info(f"Last close time as datetime for {symbol}: {last_close_time_datetime}")
+        
         next_timestamp = last_close_time_datetime + timedelta(milliseconds=1)
+        logging.info(f"Next timestamp for {symbol}: {next_timestamp}")
 
         return int(next_timestamp.timestamp() * 1000)
+
 
     def _round_timestamp_to_timeframe(self, timestamp, timeframe):
         """

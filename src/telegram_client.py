@@ -20,7 +20,7 @@ class TelegramBot:
             if df.empty:
                 logging.info("No pairs meet the Z-score threshold, no message sent.")
                 return
-
+            print(df)
             # Extract the open and close time from the DataFrame
             open_time = df['open_time'].min()  # Earliest open_time in the DataFrame
             close_time = df['close_time'].max()  # Latest close_time in the DataFrame
