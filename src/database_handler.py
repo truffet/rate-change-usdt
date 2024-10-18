@@ -142,7 +142,7 @@ class DatabaseHandler:
 
         return df
 
-    def save_symbol_data_to_db(self, data, conn, timeframe):
+    def save_symbol_data_to_db(self, data, conn, timeframe, symbol=None):
         """
         Save candlestick data and Z-scores to the SQLite database using a dictionary approach.
 
@@ -164,9 +164,12 @@ class DatabaseHandler:
             else:
                 open_time_ms = int(row['open_time'])
 
+            # Use provided symbol if given, otherwise use the symbol from the data
+            row_symbol = symbol if symbol else row.get('symbol')
+
             # Prepare the data to be inserted or updated
             data_to_insert = (
-                row['symbol'],  # Trading pair symbol
+                row_symbol,  # Trading pair symbol
                 open_time_ms,  # Open time
                 row['close_time'],  # Close time
                 row['open_price'],  # Open price
@@ -186,7 +189,7 @@ class DatabaseHandler:
             )
 
             # Check if the row already exists based on `symbol` and `open_time`
-            cursor.execute(f'SELECT COUNT(*) FROM {table_name} WHERE symbol = ? AND open_time = ?', (row['symbol'], open_time_ms))
+            cursor.execute(f'SELECT COUNT(*) FROM {table_name} WHERE symbol = ? AND open_time = ?', (row_symbol, open_time_ms))
             exists = cursor.fetchone()[0]
 
             if exists:
@@ -202,7 +205,7 @@ class DatabaseHandler:
                     row.get('z_rate_change_open_close_all_pairs', 0),
                     row.get('z_rate_change_high_low_all_pairs', 0),
                     row.get('z_volume_all_pairs', 0),
-                    row['symbol'], open_time_ms
+                    row_symbol, open_time_ms
                 ))
             else:
                 # Insert if the record does not exist
