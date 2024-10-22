@@ -1,6 +1,7 @@
 import logging
 from telegram import Bot
 import asyncio
+from datetime import datetime, timezone
 
 class TelegramBot:
     def __init__(self, bot_token, chat_id):
@@ -20,26 +21,34 @@ class TelegramBot:
             if df.empty:
                 logging.info("No pairs meet the Z-score threshold, no message sent.")
                 return
-            print(df)
+
             # Extract the open and close time from the DataFrame
             open_time = df['open_time'].min()  # Earliest open_time in the DataFrame
-            close_time = df['close_time'].max()  # Latest close_time in the DataFrame
+            close_time = df['close_time'].max()  # Latest close_time in the DataFrame (this is currently in int timestamp)
+            print(close_time)
 
-            # Sort by absolute value of rate_change in descending order
-            df = df.sort_values(by='rate_change', ascending=False)
+            # Convert close_time from int (timestamp) to datetime
+            close_time_dt = datetime.utcfromtimestamp(close_time / 1000)  # Convert milliseconds to seconds for datetime
 
             # Format the open and close time as: 'YYYY-MM-DD: HH:MM:SS -> HH:MM:SS'
-            date_str = open_time.strftime('%Y-%m-%d')
-            open_time_str = open_time.strftime('%H:%M:%S')
-            close_time_str = close_time.strftime('%H:%M:%S')
+            open_time_str = str(open_time)  # Keep open_time as raw timestamp (or format it if needed)
+            close_time_str = close_time_dt.strftime('%Y-%m-%d %H:%M:%S')  # Convert close_time to datetime string
 
             # Add timeframe to the message
-            full_message = f"Binance Spot USDT Market Recap ({timeframe.upper()} timeframe)\n{date_str}: {open_time_str} -> {close_time_str}\n\n"
+            full_message = f"Binance Spot USDT Market Recap ({timeframe.upper()} timeframe)\n"
+            full_message += f"Open Time: {open_time_str}\nClose Time: {close_time_str}\n"
+            full_message += "Symbol / Rate Change % Open-Close / % Volatility\n"
+            # Sort DataFrame by 'rate_change_open_close' in descending order
+            df = df.sort_values(by='rate_change_open_close', ascending=False)
 
             # Add each symbol and rate change to the message
             for _, row in df.iterrows():
-                rate_change_icon = "🟩" if row['rate_change'] >= 0 else "🟥"
-                full_message += f"{rate_change_icon} {row['symbol']} {row['rate_change']:.2f}%\n"
+                rate_change_icon = "🟩" if row['rate_change_open_close'] >= 0 else "🟥"
+                full_message += (
+                    f"{rate_change_icon} {row['symbol']} / "
+                    f"{row['rate_change_open_close']:.2f}% / "
+                    f"{row['rate_change_high_low']:.2f}%\n"
+                )
 
             # Send the entire message as a single Telegram message asynchronously
             await self.bot.send_message(chat_id=self.chat_id, text=f"```\n{full_message}\n```", parse_mode='Markdown')

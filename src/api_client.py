@@ -34,38 +34,24 @@ class BinanceAPI:
             logging.error(f"Error fetching USDT pairs from Binance: {e}")
             return []
 
-    def fetch_OHLCV_data(self, symbol, start_time, end_time=None, limit=1000):
+    def calculate_candles_to_fetch(self, start_time, end_time):
         """
-        Fetches candlestick data for a given symbol within a specified time range.
-        
-        Args:
-            symbol (str): The trading pair symbol (e.g., 'BTCUSDT').
-            start_time (int): Start time in milliseconds.
-            end_time (int): End time in milliseconds (optional).
-            limit (int): The number of candles to fetch (default is 1000).
-        
-        Returns:
-            list: A list of candlestick data from the Binance API.
+        Calculate the total number of candles to fetch between start_time and end_time.
         """
-        params = {
-            'symbol': symbol,
-            'interval': self.interval,
-            'startTime': start_time,
-            'limit': limit  # Fetch up to 'limit' candles in one request
+        # Define the interval in milliseconds for 4h, daily (1d), and weekly (1w)
+        interval_mapping = {
+            '4h': 4 * 60 * 60 * 1000,  # 4 hours in milliseconds
+            'd': 24 * 60 * 60 * 1000,  # 1 day in milliseconds
+            'w': 7 * 24 * 60 * 60 * 1000  # 1 week in milliseconds
         }
-        if end_time:
-            params['endTime'] = end_time
 
-        try:
-            response = requests.get(f"{self.BASE_URL}{self.kline_endpoint}", params=params)
-            response.raise_for_status()
-            candles = response.json()
-            logging.info(f"Successfully fetched candlestick data for {symbol} from {start_time} to {end_time}.")
-            return candles
-        except requests.RequestException as e:
-            logging.error(f"Error fetching candlestick data for {symbol}: {e}")
-            return None
+        # Get the duration of the interval in milliseconds based on self.interval
+        interval_duration = interval_mapping.get(self.interval)
 
+        # Calculate the total number of candles to fetch
+        total_candles = (end_time - start_time) // interval_duration
+
+        return total_candles
 
     def fetch_candle_data(self, symbol, start_time, end_time, limit=1000):
         """
@@ -74,21 +60,31 @@ class BinanceAPI:
         Args:
             symbol (str): The trading pair symbol (e.g., 'BTCUSDT').
             start_time (int): Start time in milliseconds.
-            end_time (int): End time in milliseconds (optional, default is 0 for no end time).
+            end_time (int): End time in milliseconds.
             limit (int): The number of candles to fetch per batch (default is 1000).
     
         Returns:
             list: A list of candlestick data from the Binance API.
         """
         all_candles = []  # List to store all fetched candles
+        
+        # Calculate the total number of candles to fetch
+        total_candles = self.calculate_candles_to_fetch(start_time, end_time)
+        logging.info(f"Total candles to fetch for {symbol}: {total_candles}")
 
-        # Loop until the cursor exceeds end_time (if end_time is provided and > 0)
-        while start_time < end_time:
+        # Keep track of how many candles we've fetched
+        candles_fetched = 0
+
+        # Loop until we've fetched the total number of candles
+        while candles_fetched < total_candles:
+            remaining_candles = total_candles - candles_fetched
+            fetch_limit = min(remaining_candles, limit)
+
             params = {
                 'symbol': symbol,
                 'interval': self.interval,
                 'startTime': start_time,
-                'limit': limit  # Fetch up to 'limit' candles per batch
+                'limit': fetch_limit  # Fetch up to 'limit' candles per batch
             }
 
             try:
@@ -102,6 +98,9 @@ class BinanceAPI:
 
                 all_candles.extend(candles)
                 logging.info(f"Fetched {len(candles)} candles for {symbol} from {start_time}.")
+
+                # Update the number of candles fetched
+                candles_fetched += len(candles)
 
                 # Update the cursor to the last candle's close time plus 1 millisecond
                 start_time = int(candles[-1][6]) + 1

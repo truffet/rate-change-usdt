@@ -28,7 +28,6 @@ class DatabaseHandler:
 
         # Fetch the most recent close_time for the specified symbol
         query = f"SELECT MAX(close_time) FROM {table} WHERE symbol = ?"
-        logging.info(f"Query: {query}")
         cursor = conn.cursor()
         cursor.execute(query, (symbol,))
         last_close_time = cursor.fetchone()[0]
@@ -230,4 +229,8 @@ class DatabaseHandler:
 
         # Commit the transaction
         conn.commit()
+
+    def get_last_data_from_db(self, conn, timeframe):
+        return
+
 

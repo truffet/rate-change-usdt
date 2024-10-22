@@ -56,19 +56,17 @@ async def main():
             logging.error(f"Error fetching timestamp cursor: {e}")
             return
         
-        # Get current time in UTC as end_time
-        end_time = int(datetime.now(timezone.utc).timestamp() * 1000)
-        
         if args.timeframe == '4h':
             # Fetch and backfill 4-hour candles from Binance API
+            end_time = data_processor.get_last_completed_timeframe_end_time(args.timeframe)
             candle_data = api_client.fetch_candle_data(symbol, timestamp_cursor, end_time)
             if candle_data:
                 logging.info(f"Fetched {len(candle_data)} x 4h candles for {symbol} starting from timestamp {timestamp_cursor}.")
             else:
                 logging.info(f"No new 4-hour candles available for {symbol}.")
-    
         else:
             # Backfill aggregate by fetching 4-hour data or 1-day from the database (for daily or weekly)
+            end_time = data_processor.get_last_completed_timeframe_end_time(args.timeframe)
             candle_data = data_processor.aggregate_candle_data(symbol, args.timeframe, timestamp_cursor, end_time)
             if candle_data:
                 logging.info(f"Fetched {len(candle_data)} x 1{args.timeframe} candles for {symbol} starting from timestamp {timestamp_cursor}.")
@@ -94,7 +92,7 @@ async def main():
 
     # Group by symbol and get the row with the maximum open_time for each symbol
     latest_data = df_all_pairs.loc[df_all_pairs.groupby('symbol')['open_time'].idxmax()]
-    df_filtered = latest_data[((latest_data['z_rate_change_open_close'].abs() >= 2) | (latest_data['z_rate_change_high_low'].abs() >= 2)) & (latest_data['z_volume_all_pairs'].abs() >= 2)]
+    df_filtered = latest_data[((latest_data['z_rate_change_open_close'].abs() >= 2) | (latest_data['z_rate_change_high_low'].abs() >= 2)) & (latest_data['z_volume_pair'].abs() >= 2)]
 
     await telegram_bot.send_candlestick_summary(df_filtered, args.timeframe)
 

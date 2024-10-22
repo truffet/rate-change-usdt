@@ -6,6 +6,50 @@ import sqlite3
 
 class DataProcessor:
 
+    def get_last_completed_timeframe_end_time(self, timeframe):
+        """
+        Get the timestamp (in milliseconds) for the most recent fully completed time period
+        based on the timeframe (4h, d, w).
+        
+        Args:
+            timeframe (str): The timeframe for which to get the most recent completed time.
+                             Supported values are '4h', 'd', and 'w'.
+        
+        Returns:
+            int: The timestamp in milliseconds for the most recent fully completed period.
+        """
+        now = datetime.now(timezone.utc)
+
+        if timeframe == '4h':
+            # Find how many hours we are past the most recent multiple of 4
+            hours_past_multiple_of_4 = now.hour % 4
+            # Subtract the remainder hours and set minutes, seconds, and microseconds to 0
+            last_completed_period = now - timedelta(hours=hours_past_multiple_of_4, minutes=now.minute, seconds=now.second, microseconds=now.microsecond)
+
+        elif timeframe == 'd':
+            # For daily, subtract the current time's hour, minutes, seconds to get the most recent completed day
+            last_completed_period = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            # If it's exactly midnight, subtract one day to get the previous completed day
+            if now.hour == 0 and now.minute == 0:
+                last_completed_period = last_completed_period - timedelta(days=1)
+
+        elif timeframe == 'w':
+            # For weekly, find the start of the week (let's assume the week starts on Monday)
+            days_past_monday = (now.weekday() + 1) % 7  # Monday = 0, adjust to start week on Monday
+            last_completed_period = now - timedelta(days=days_past_monday, hours=now.hour, minutes=now.minute, seconds=now.second, microseconds=now.microsecond)
+            # If it's exactly the start of the week, subtract one week to get the previous completed week
+            if days_past_monday == 0 and now.hour == 0:
+                last_completed_period = last_completed_period - timedelta(weeks=1)
+
+        else:
+            raise ValueError(f"Unsupported timeframe: {timeframe}")
+
+        # Convert to milliseconds (Binance API uses milliseconds)
+        end_time = int(last_completed_period.timestamp() * 1000)
+        
+        return end_time
+
+
     def convert_candle_data_to_dataframe(self, candle_data, timeframe='4h'):
         """
         Converts the candle data fetched from Binance API to a pandas DataFrame.
@@ -122,16 +166,17 @@ class DataProcessor:
             print(f"No 4-hour data available for {symbol} between {start_time} and {end_time}.")
             return []
 
-        # Convert 'open_time' and 'close_time' to datetime for resampling
+        # Convert 'open_time' to datetime for resampling
         df_4h['open_time'] = pd.to_datetime(df_4h['open_time'], unit='ms')
-        df_4h['close_time'] = pd.to_datetime(df_4h['close_time'], unit='ms')
 
         # Resample the data into daily ('1D') or weekly ('1W') candles based on the 'timeframe'
         if timeframe == 'd':  # Daily candles (1 day = 6 x 4-hour candles)
             resample_rule = '1D'
+            interval_ms = 24 * 60 * 60 * 1000  # 1 day in milliseconds
             required_candles = 6  # 6 x 4-hour candles in a day
         elif timeframe == 'w':  # Weekly candles (1 week = 6 x 7 x 4-hour candles)
             resample_rule = '1W'
+            interval_ms = 7 * 24 * 60 * 60 * 1000  # 1 week in milliseconds
             required_candles = 42  # 42 x 4-hour candles in a week
         else:
             raise ValueError("Invalid timeframe. Use 'd' for daily or 'w' for weekly.")
@@ -143,8 +188,7 @@ class DataProcessor:
             'low_price': 'min',      # The lowest price during the period
             'close_price': 'last',   # The last close price of the period
             'volume': 'sum',         # Total volume during the period
-            'quote_volume': 'sum',   # Total quote volume during the period
-            'close_time': 'last'     # The last close time of the period
+            'quote_volume': 'sum'    # Total quote volume during the period
         }).reset_index()
 
         # Calculate how many 4-hour candles contributed to each period
@@ -153,9 +197,13 @@ class DataProcessor:
         # Filter out incomplete periods (where the number of 4-hour candles is less than required)
         df_resampled = df_resampled[df_resampled['candle_count'] == required_candles]
 
-        # Convert 'open_time' and 'close_time' back to milliseconds for consistency with Binance API
+        # Manually calculate the correct close_time for each resampled period:
+        df_resampled['close_time'] = df_resampled['open_time'].apply(
+            lambda ot: (int(ot.timestamp() * 1000) + interval_ms - 1)
+        )
+
+        # Convert 'open_time' back to milliseconds for consistency with Binance API
         df_resampled['open_time'] = df_resampled['open_time'].astype(int) // 10**6
-        df_resampled['close_time'] = df_resampled['close_time'].astype(int) // 10**6
 
         # Return the columns in the correct order for database insertion
         aggregated_data = df_resampled[['open_time', 'close_time', 'open_price', 'high_price', 'low_price', 'close_price', 'volume', 'quote_volume']].values.tolist()
