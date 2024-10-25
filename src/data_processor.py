@@ -145,7 +145,7 @@ class DataProcessor:
         # Calculate cross-pair Z-scores across the entire dataset
         df['z_rate_change_open_close_all_pairs'] = zscore(df['rate_change_open_close'])
         df['z_rate_change_high_low_all_pairs'] = zscore(df['rate_change_high_low'])
-        df['z_volume_all_pairs'] = zscore(df['volume'])
+        df['z_volume_all_pairs'] = zscore(df['quote_volume'])
 
         logging.info("Cross Z-scores data calculated.")
         
