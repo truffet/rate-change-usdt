@@ -1,9 +1,13 @@
 import argparse
 import sqlite3
-from db_table_setup import create_isolation_forest_table
+import os
+import pandas as pd
 
-# Database file name
-DB_FILE = "trading_data.db"
+from db_table_setup import create_isolation_forest_table  # Adjust this import if necessary based on your structure
+from data_fetcher import fetch_zscore_data
+
+# Database file path (one level up in the directory)
+DB_FILE = os.path.join("..", "trading_data.db")
 
 def main(timeframe):
     """
@@ -18,9 +22,12 @@ def main(timeframe):
     # Call the function to create the table
     create_isolation_forest_table(conn, timeframe)
 
+    # Fetch z-score data from db
+    df = fetch_zscore_data(conn, timeframe)
+
     # Close the database connection
     conn.close()
-    print(f"Database connection closed.")
+    print("Database connection closed.")
 
 if __name__ == "__main__":
     # Set up argument parsing
