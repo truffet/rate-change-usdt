@@ -1,41 +1,31 @@
-import argparse
-import sqlite3
 import os
 import pandas as pd
 
-from db_table_setup import create_isolation_forest_table  # Adjust this import if necessary based on your structure
-from data_fetcher import fetch_zscore_data
+from src.db_handler import DatabaseHandler
+from src.data_processor import DataProcessor
 
 # Database file path (one level up in the directory)
 DB_FILE = os.path.join("..", "trading_data.db")
 
-def main(timeframe):
+def main():
     """
-    Main function to create the isolation forest table for the specified timeframe.
-
-    Args:
-        timeframe (str): The timeframe for which to create the table ('4h', 'd', or 'w').
+    Main function to create the isolation forest table specifically for the 4-hour timeframe.
     """
-    # Connect to the SQLite database
-    conn = sqlite3.connect(DB_FILE)
+    # Set the timeframe to '4h' as we're focusing on 4-hour data
+    timeframe = "4h"
+    
+    # Initialize DatabaseHandler with the database file path and timeframe
+    database_handler = DatabaseHandler(DB_FILE, timeframe)
+    # Initialize DataProcessor class
+    data_processor = DataProcessor()
 
-    # Call the function to create the table
-    create_isolation_forest_table(conn, timeframe)
+    # Create the isolation forest table for the 4-hour timeframe
+    database_handler.create_isolation_forest_table()
 
-    # Fetch z-score data from db
-    df = fetch_zscore_data(conn, timeframe)
+    # Fetch z-score data from the database specifically for the 4-hour timeframe
+    df = database_handler.fetch_zscore_data()
 
-    # Close the database connection
-    conn.close()
-    print("Database connection closed.")
+    print("Database operation completed.")
 
 if __name__ == "__main__":
-    # Set up argument parsing
-    parser = argparse.ArgumentParser(description="Create isolation forest table for specified timeframe.")
-    parser.add_argument("timeframe", choices=["4h", "d", "w"], help="Specify the timeframe: '4h', 'd', or 'w'")
-    
-    # Parse the arguments
-    args = parser.parse_args()
-
-    # Run the main function with the specified timeframe
-    main(args.timeframe)
+    main()
