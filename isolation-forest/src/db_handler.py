@@ -1,79 +1,89 @@
 import sqlite3
 import pandas as pd
+import logging
 
 class DatabaseHandler:
-    def __init__(self, db_file, timeframe):
-        """
-        Initialize DatabaseHandler with the path to the SQLite database file and the timeframe.
-        
-        Args:
-            db_file (str): Path to the SQLite database file.
-            timeframe (str): The timeframe for the data ('4h', 'd', 'w').
-        """
-        self.db_file = db_file
-        self.timeframe = timeframe  # Store the timeframe as an instance variable
+    def __init__(self, db_path, timeframe="4h"):
+        self.conn = sqlite3.connect(db_path)
+        self.timeframe = timeframe
+        self.main_table = f'usdt_{self.timeframe}'
+        self.normal_data_table = f'normal_data_{self.timeframe}'
+        logging.info(f"Connected to the database at '{db_path}' for timeframe '{self.timeframe}'.")
 
-    def _connect(self):
-        """Private method to create a new database connection."""
-        return sqlite3.connect(self.db_file)
-
-    def create_isolation_forest_table(self):
+    def create_normal_data_table(self):
         """
-        Create an isolation forest table for the instance's timeframe if it does not already exist.
+        Create the normal data table if it does not already exist.
         """
-        table_name = f'isolation_forest_{self.timeframe}'
-        
         create_table_query = f'''
-        CREATE TABLE IF NOT EXISTS {table_name} (
+        CREATE TABLE IF NOT EXISTS {self.normal_data_table} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             symbol TEXT NOT NULL,
             open_time INTEGER NOT NULL,
-            error_score REAL NOT NULL,
-            z_error_score REAL NOT NULL,
-            is_anomaly BOOLEAN,
-            FOREIGN KEY (symbol) REFERENCES usdt_{self.timeframe} (symbol),
-            UNIQUE(symbol, open_time)  -- Ensure unique data per trading pair and open time
+            close_time INTEGER NOT NULL,
+            z_rate_change_open_close REAL,
+            z_rate_change_high_low REAL,
+            z_volume_pair REAL,
+            z_rate_change_open_close_all_pairs REAL,
+            z_rate_change_high_low_all_pairs REAL,
+            z_volume_all_pairs REAL,
+            UNIQUE(symbol, open_time)
         );
         '''
-        
         try:
-            with self._connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute(create_table_query)
-                conn.commit()
-                print(f"Table '{table_name}' created successfully (or already exists).")
-            
+            cursor = self.conn.cursor()
+            cursor.execute(create_table_query)
+            self.conn.commit()
+            logging.info(f"Table '{self.normal_data_table}' created successfully (or already exists).")
         except sqlite3.Error as e:
-            print(f"Error creating table '{table_name}': {e}")
+            logging.error(f"Error creating table '{self.normal_data_table}': {e}")
 
-    def fetch_zscore_data(self):
+    def get_last_registered_open_time(self):
         """
-        Fetches Z-score data and open_time from the database for the instance's timeframe.
+        Retrieve the last recorded open_time from the normal data table.
+        """
+        query = f"SELECT MAX(open_time) FROM {self.normal_data_table}"
+        cursor = self.conn.cursor()
+        cursor.execute(query)
+        result = cursor.fetchone()[0]
+        logging.info(f"Fetched last registered open_time: {result}")
+        return result if result else 0
 
-        Returns:
-            pd.DataFrame: DataFrame containing open_time and six Z-score columns for the specified timeframe.
+    def fetch_all_zscore_data(self):
         """
-        table_name = f'usdt_{self.timeframe}'
-        
+        Fetch all Z-score data from the main table.
+        """
         query = f'''
             SELECT 
+                symbol,
                 open_time,
+                close_time,
                 z_rate_change_open_close, 
                 z_rate_change_high_low, 
                 z_volume_pair, 
                 z_rate_change_open_close_all_pairs, 
                 z_rate_change_high_low_all_pairs, 
                 z_volume_all_pairs
-            FROM {table_name}
+            FROM {self.main_table}
         '''
-        
         try:
-            with self._connect() as conn:
-                df = pd.read_sql_query(query, conn)
-                print(f"Fetched data for {self.timeframe} timeframe with {len(df)} rows, including open_time.")
-        except Exception as e:
-            print(f"Error fetching data: {e}")
-            df = pd.DataFrame()
-        
-        return df
+            df = pd.read_sql_query(query, self.conn)
+            logging.info(f"Fetched {len(df)} rows of Z-score data from {self.main_table}.")
+            return df
+        except sqlite3.Error as e:
+            logging.error(f"Error fetching Z-score data from {self.main_table}: {e}")
+            return pd.DataFrame()
 
+    def insert_normal_data(self, df_normal):
+        """
+        Insert normal data into the normal data table.
+        """
+        try:
+            df_normal.to_sql(self.normal_data_table, self.conn, if_exists='append', index=False)
+            logging.info(f"Inserted {len(df_normal)} new rows into '{self.normal_data_table}'.")
+        except sqlite3.Error as e:
+            logging.error(f"Error inserting data into '{self.normal_data_table}': {e}")
+
+    def close(self):
+        """Close the database connection."""
+        self.conn.close()
+        logging.info("Closed the database connection.")

@@ -1,18 +1,11 @@
 import pandas as pd
+import logging
 
 class DataProcessor:
-
-    def filter_normal_data(self, df):
+    def extract_normal_data(self, df):
         """
         Filters the DataFrame to include only rows where all Z-scores have an absolute value less than 2.
-
-        Args:
-            df (pd.DataFrame): The input DataFrame with Z-score columns.
-
-        Returns:
-            pd.DataFrame: DataFrame containing only rows where all Z-scores are considered "normal" (absolute value < 2).
         """
-        # Define the conditions for filtering "normal" data
         conditions = (
             (df['z_rate_change_open_close'].abs() < 2) &
             (df['z_rate_change_high_low'].abs() < 2) &
@@ -21,10 +14,18 @@ class DataProcessor:
             (df['z_rate_change_high_low_all_pairs'].abs() < 2) &
             (df['z_volume_all_pairs'].abs() < 2)
         )
-        
-        # Filter the DataFrame based on the conditions
         normal_data_df = df[conditions]
-
-        print(f"Filtered down to {len(normal_data_df)} rows of normal data.")
-        
+        logging.info(f"Filtered down to {len(normal_data_df)} rows of normal data from {len(df)} total rows.")
         return normal_data_df
+
+    def get_new_data(self, df, last_open_time):
+        """
+        Filters the DataFrame to include only new rows with open_time greater than the last recorded open_time.
+        """
+        df_new_data = df[df['open_time'] > last_open_time]
+        logging.info(f"Identified {len(df_new_data)} new rows since last open_time: {last_open_time}")
+
+        # Extract only the normal data from the new entries
+        df_normal_data = self.extract_normal_data(df_new_data)
+        
+        return df_normal_data
