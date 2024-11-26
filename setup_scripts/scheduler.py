@@ -34,11 +34,11 @@ scheduler = BlockingScheduler()
 # Define a cron job for the '4h' timeframe (runs every 4 hours at 4:05, 8:05, 12:05, 16:05, 20:05, and 00:05 UTC)
 scheduler.add_job(run_script, CronTrigger(hour='4,8,12,16,20,0', minute=5, timezone='UTC'), args=['4h'])
 
-# Add cron job for the 'd' timeframe (daily job, runs just after the day is completed at 00:05 UTC)
-scheduler.add_job(run_script, CronTrigger(hour=0, minute=5, timezone='UTC'), args=['d'])
+# Add cron job for the 'd' timeframe (daily job, runs just after the day is completed at 00:15= UTC)
+scheduler.add_job(run_script, CronTrigger(hour=0, minute=15, timezone='UTC'), args=['d'])
 
-# Add cron job for the 'w' timeframe (weekly job, runs just after the week is completed at 00:05 UTC on Monday)
-scheduler.add_job(run_script, CronTrigger(day_of_week='mon', hour=0, minute=5, timezone='UTC'), args=['w'])
+# Add cron job for the 'w' timeframe (weekly job, runs just after the week is completed at 00:25 UTC on Monday)
+scheduler.add_job(run_script, CronTrigger(day_of_week='mon', hour=0, minute=25, timezone='UTC'), args=['w'])
 
 # Start the scheduler
 if __name__ == "__main__":

@@ -92,7 +92,7 @@ async def main():
 
     # Group by symbol and get the row with the maximum open_time for each symbol
     latest_data = df_all_pairs.loc[df_all_pairs.groupby('symbol')['open_time'].idxmax()]
-    df_filtered = latest_data[((latest_data['z_rate_change_open_close'].abs() >= 2) | (latest_data['z_rate_change_high_low'].abs() >= 2)) & ((latest_data['z_rate_change_open_close_all_pairs'].abs() >= 2) | (latest_data['z_rate_change_high_low_all_pairs'].abs() >= 2)) & (latest_data['z_volume_pair'].abs() >= 2) & (latest_data['z_volume_all_pairs'].abs() >= 1)]
+    df_filtered = latest_data[((latest_data['z_rate_change_open_close'].abs() >= 2) | (latest_data['z_rate_change_high_low'].abs() >= 2)) & ((latest_data['z_rate_change_open_close_all_pairs'].abs() >= 1) | (latest_data['z_rate_change_high_low_all_pairs'].abs() >= 1)) & (latest_data['z_volume_pair'].abs() >= 2)]
 
     await telegram_bot.send_candlestick_summary(df_filtered, args.timeframe)
 
