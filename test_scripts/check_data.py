@@ -4,10 +4,17 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 def fetch_data_from_db(conn, symbol, num_units, grouping):
-    """Fetch data from the daily or weekly table for a given symbol and units."""
-    table = 'usdt_d' if grouping == 'd' else 'usdt_w'
+    """Fetch data from the daily, weekly, or 4h table for a given symbol and units."""
+    if grouping == 'd':
+        table = 'usdt_d'
+    elif grouping == 'w':
+        table = 'usdt_w'
+    elif grouping == '4h':
+        table = 'usdt_4h'
+    else:
+        raise ValueError("Invalid grouping. Supported values are 'd', 'w', '4h'.")
 
-    # Query the most recent num_units candles from the daily or weekly table
+    # Query the most recent num_units candles from the specified table
     query = f'''SELECT open_time, open_price, high_price, low_price, close_price, volume, 
                         z_rate_change_open_close, z_rate_change_high_low, z_volume_pair, 
                         z_rate_change_open_close_all_pairs, z_rate_change_high_low_all_pairs, z_volume_all_pairs
@@ -95,7 +102,7 @@ def main(symbol, num_units, grouping):
     # Connect to the SQLite database
     conn = sqlite3.connect('trading_data.db')
 
-    # Fetch data for the specified trading pair and grouping (daily or weekly)
+    # Fetch data for the specified trading pair and grouping (daily, weekly, or 4h)
     df = fetch_data_from_db(conn, symbol, num_units, grouping)
 
     # Plot the OHLCV chart with Z-scores for the pair and cross-pair
@@ -109,7 +116,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Plot OHLCV and Z-scores for a given trading pair and cross-pairs.")
     parser.add_argument("symbol", type=str, help="The symbol of the trading pair (e.g., BTCUSDT)")
     parser.add_argument("num_units", type=int, help="The number of units (e.g., 7 for days or weeks)")
-    parser.add_argument("grouping", type=str, choices=['d', 'w'], help="The grouping ('d' for daily, 'w' for weekly)")
+    parser.add_argument("grouping", type=str, choices=['d', 'w', '4h'], help="The grouping ('d' for daily, 'w' for weekly, '4h' for 4-hour)")
     args = parser.parse_args()
 
     main(args.symbol, args.num_units, args.grouping)
