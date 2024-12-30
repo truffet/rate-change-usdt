@@ -6,10 +6,10 @@ import pandas as pd
 import asyncio
 
 from src.config_loader import ConfigLoader
-from src.api_client import BinanceAPI
-from src.data_processor import DataProcessor
-from src.telegram_client import TelegramBot
-from src.database_handler import DatabaseHandler
+from src.api.binance_api import BinanceAPI
+from src.data_processing.processor import DataProcessor
+from src.notifications.telegram_bot import TelegramBot
+from src.db_handler.database_handler import DatabaseHandler
 
 async def main():
     # Set up argument parsing
@@ -39,7 +39,7 @@ async def main():
     database_handler = DatabaseHandler()    # Initialize DatabaseHandler for DB interactions
 
     # Connect to the SQLite database
-    conn = sqlite3.connect('trading_data.db')
+    conn = sqlite3.connect('db/trading_data.db')
 
     # Get all USDT pairs
     usdt_pairs = api_client.get_usdt_pairs()

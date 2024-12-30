@@ -2,7 +2,7 @@ import sqlite3
 import os
 
 # Set the database file name
-DB_FILE = "trading_data.db"
+DB_FILE = "db/trading_data.db"
 
 def create_table(cursor, table_name):
     """
@@ -51,22 +51,35 @@ def create_index(cursor, table_name):
     print(f"Index on (symbol, open_time) created successfully for {table_name}!")
 
 def main():
-    # Step 1: Check if the database file already exists
+    # Step 1: Ensure the directory for the database exists
+    print(f"DB_FILE path: {DB_FILE}")
+    db_dir = os.path.dirname(DB_FILE)
+    print(f"DB directory path: {db_dir}")
+
+    if not os.path.exists(db_dir):
+        print("DB directory does not exist, attempting to create it...")
+        os.makedirs(db_dir)
+        print(f"Directory '{db_dir}' created successfully.")
+    else:
+        print("DB directory already exists.")
+
+
+    # Step 2: Check if the database file already exists
     if os.path.exists(DB_FILE):
         print(f"Database '{DB_FILE}' already exists.")
         return
-    
-    # Step 2: Create a connection to the SQLite database (this creates the file if it doesn't exist)
+
+    # Step 3: Create a connection to the SQLite database
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
-    # Step 3: Create the necessary tables and indexes
-    table_names = ['usdt_4h', 'usdt_d', 'usdt_w']  # Define all the table names
+    # Step 4: Create the necessary tables and indexes
+    table_names = ['usdt_4h', 'usdt_d', 'usdt_w']
     for table in table_names:
         create_table(cursor, table)
         create_index(cursor, table)
 
-    # Step 4: Commit the changes and close the connection
+    # Step 5: Commit the changes and close the connection
     conn.commit()
     conn.close()
 

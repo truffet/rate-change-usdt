@@ -2,7 +2,7 @@ import sqlite3
 import pandas as pd
 
 # Database file path
-DB_FILE = 'trading_data.db'
+DB_FILE = 'db/trading_data.db'
 
 # Define the tables and the threshold
 tables = ['usdt_4h', 'usdt_d', 'usdt_w']

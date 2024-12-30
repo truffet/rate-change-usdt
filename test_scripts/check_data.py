@@ -100,7 +100,7 @@ def plot_ohlcv_with_z_scores(df, symbol):
 
 def main(symbol, num_units, grouping):
     # Connect to the SQLite database
-    conn = sqlite3.connect('trading_data.db')
+    conn = sqlite3.connect('db/trading_data.db')
 
     # Fetch data for the specified trading pair and grouping (daily, weekly, or 4h)
     df = fetch_data_from_db(conn, symbol, num_units, grouping)

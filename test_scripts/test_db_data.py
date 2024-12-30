@@ -1,7 +1,7 @@
 import sqlite3
 import os
 
-def check_database_exists(db_file="trading_data.db"):
+def check_database_exists(db_file="db/trading_data.db"):
     """Check if the database file exists."""
     if not os.path.exists(db_file):
         print(f"Database file '{db_file}' not found.")
@@ -10,7 +10,7 @@ def check_database_exists(db_file="trading_data.db"):
         print(f"Database file '{db_file}' exists.")
         return True
 
-def check_table_exists(db_file="trading_data.db", table_name="usdt_d"):
+def check_table_exists(db_file="db/trading_data.db", table_name="usdt_d"):
     """Check if the table exists in the database."""
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
@@ -31,7 +31,7 @@ def check_table_exists(db_file="trading_data.db", table_name="usdt_d"):
     finally:
         conn.close()
 
-def fetch_first_and_last_row(db_file="trading_data.db", table_name="usdt_w"):
+def fetch_first_and_last_row(db_file="db/trading_data.db", table_name="usdt_w"):
     """Fetch the first and last row of the table."""
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
@@ -61,7 +61,7 @@ def fetch_first_and_last_row(db_file="trading_data.db", table_name="usdt_w"):
     finally:
         conn.close()
 
-def check_table_schema(db_file="trading_data.db", table_name="usdt_w"):
+def check_table_schema(db_file="db/trading_data.db", table_name="usdt_w"):
     """Check the table schema to ensure columns are present."""
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
